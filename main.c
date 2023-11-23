@@ -8,7 +8,7 @@ int game_is_running = FALSE;
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_DisplayMode displayMode;
-   
+
 int last_frame_time = 0;
 
 struct ball
@@ -22,7 +22,10 @@ struct ball
    int down;
    int right;
    double dashCd;
+   double dashSpeed;
 } ball;
+
+
 
 struct enemy
 {
@@ -30,7 +33,9 @@ struct enemy
    float y;
    float width;
    float height;
-} enemy;
+};
+
+struct enemy enemies[MAX_ENEMIES];
 
 struct bullet
 {
@@ -43,8 +48,6 @@ struct bullet
    double speedUp;
    int isFired;
 } bullet;
-
-
 
 // struct enemyBullet
 // {
@@ -133,7 +136,14 @@ void process_input()
       {
          ball.right = 1;
       };
-      if (event.key.keysym.sym == SDLK_e && bullet.isFired == 0)
+      if (event.key.keysym.sym == SDLK_SPACE && ball.dashCd == 0)
+      {
+         ball.dashSpeed = 1000;
+         ball.dashCd = 2;
+      };
+      break;
+   case SDL_MOUSEBUTTONDOWN:
+      if (event.button.button == SDL_BUTTON_LEFT && bullet.isFired == 0)
       {
          int x, y;
          SDL_GetMouseState(&x, &y);
@@ -144,46 +154,16 @@ void process_input()
          bullet.isFired = 1;
          bullet.speedUp = 1000;
       };
-      if (event.key.keysym.sym == SDLK_e && bullet.isFired == 2) {
+      if (event.button.button == SDL_BUTTON_LEFT && bullet.isFired == 2)
+      {
          bullet.isFired = 1;
          bullet.speedUp = 1000;
       }
-      if (event.key.keysym.sym == SDLK_q && bullet.isFired == 1)
+      if (event.button.button == SDL_BUTTON_RIGHT && bullet.isFired == 1)
       {
          bullet.isFired = 2;
          bullet.speedUp = 1000;
       };
-      if (event.key.keysym.sym == SDLK_SPACE && ball.dashCd == 0)
-      {
-         int multiDer;
-         if (ball.up + ball.down + ball.left + ball.right == 2)
-         {
-            multiDer = 300;
-         }
-         else
-         {
-            multiDer = 600;
-         }
-
-         if (ball.up)
-         {
-            ball.y -= multiDer;
-         }
-         if (ball.down)
-         {
-            ball.y += multiDer;
-         }
-         if (ball.left)
-         {
-            ball.x -= multiDer;
-         }
-         if (ball.right)
-         {
-            ball.x += multiDer;
-         }
-         ball.dashCd = 6;
-      };
-      break;
 
    case SDL_KEYUP:
       if (event.key.keysym.sym == SDLK_w)
@@ -216,11 +196,15 @@ void setup()
    ball.left = 0;
    ball.right = 0;
    ball.dashCd = 0;
+   ball.dashSpeed = 0;
 
-   enemy.x = 300;
-   enemy.y = 300;
-   enemy.width = 15;
-   enemy.height = 15;
+
+   for (int i = 0; i < MAX_ENEMIES; ++i) {
+      enemies[i].width = 15;
+      enemies[i].height = 15;
+      enemies[i].x = random_float(0, displayMode.w - enemies[i].width);
+      enemies[i].y = random_float(0, displayMode.h - enemies[i].height);
+   }
 
    bullet.isFired = 0;
    bullet.width = 10;
@@ -243,49 +227,51 @@ void update()
 
    last_frame_time = SDL_GetTicks();
 
-
-   SDL_Rect enemy_rect = {(int)enemy.x, (int)enemy.y, (int)enemy.width, (int)enemy.height};
    SDL_Rect ball_rect = {(int)ball.x, (int)ball.y, (int)ball.width, (int)ball.height};
-   if (check_collision(ball_rect, enemy_rect))
-   {
-      ball.x = 20;
-      ball.y = 20;
-      bullet.isFired = 0;
-      enemy.x = 300;
-      enemy.y = 300;
+   for (int i = 0; i < MAX_ENEMIES; ++i) {
+      SDL_Rect enemy_rect = {(int)enemies[i].x, (int)enemies[i].y, (int)enemies[i].width, (int)enemies[i].height};
+      if (check_collision(ball_rect, enemy_rect)) {
+         ball.x = 20;
+         ball.y = 20;
+         bullet.isFired = 0;
+      }
    }
 
    if (bullet.isFired == 1 || bullet.isFired == 2)
    {
       float bullet_speed = 400.0f + bullet.speedUp;
-         SDL_Rect bullet_rect = {(int)bullet.x, (int)bullet.y, (int)bullet.width, (int)bullet.height};
+      SDL_Rect bullet_rect = {(int)bullet.x, (int)bullet.y, (int)bullet.width, (int)bullet.height};
 
       if (bullet.isFired == 2)
       {
          bullet_speed = 700.0f + bullet.speedUp;
          bullet.dir = atan2(ball.y - bullet.y, ball.x - bullet.x);
-         if (check_collision(bullet_rect, ball_rect)) {
+         if (check_collision(bullet_rect, ball_rect))
+         {
             bullet.isFired = 0;
          }
          bullet.x += cos(bullet.dir) * bullet_speed * delta_time;
          bullet.y += sin(bullet.dir) * bullet_speed * delta_time;
-      } else {
+      }
+      else
+      {
          bullet.x += cos(bullet.prevDir) * bullet_speed * delta_time;
          bullet.y += sin(bullet.prevDir) * bullet_speed * delta_time;
       }
-      
 
 
-      if (check_collision(bullet_rect, enemy_rect))
-      {
-         enemy.x = random_float(0, displayMode.w - enemy.width);
-         enemy.y = random_float(0, displayMode.h - enemy.height);
+      for (int i = 0; i < MAX_ENEMIES; ++i) {
+         SDL_Rect enemy_rect = {(int)enemies[i].x, (int)enemies[i].y, (int)enemies[i].width, (int)enemies[i].height};
+         if(check_collision(bullet_rect, enemy_rect)) {
+            enemies[i].x = random_float(0, displayMode.w - enemies[i].width);
+            enemies[i].y = random_float(0, displayMode.h - enemies[i].height);
+         }
       }
 
-      if (bullet.x < 0 || bullet.x > displayMode.w || bullet.y < 0 || bullet.y > displayMode.h) {
+      if (bullet.x < 0 || bullet.x > displayMode.w || bullet.y < 0 || bullet.y > displayMode.h)
+      {
          bullet.isFired = 2;
       }
-
    }
 
    // if (enemyBullet.isFired == 0) {
@@ -314,49 +300,58 @@ void update()
       }
    }
 
+   if (ball.dashSpeed > 0)
+   {
+      ball.dashSpeed -= delta_time * 3000;
+      if (ball.dashSpeed < 0)
+      {
+         ball.dashSpeed = 0;
+      }
+   }
+
    int multiDer;
-    if (ball.up + ball.down + ball.left + ball.right == 2)
-    {
-        multiDer = 100;
-    }
-    else
-    {
-        multiDer = 200;
-    }
+   if (ball.up + ball.down + ball.left + ball.right == 2)
+   {
+      multiDer = 100 + ball.dashSpeed;
+   }
+   else
+   {
+      multiDer = 200 + ball.dashSpeed;
+   }
 
-    if (ball.up && ball.y > 0)
-    {
-        ball.y -= multiDer * delta_time;
-    }
-    if (ball.down && ball.y < displayMode.h - ball.height)
-    {
-        ball.y += multiDer * delta_time;
-    }
-    if (ball.left && ball.x > 0)
-    {
-        ball.x -= multiDer * delta_time;
-    }
-    if (ball.right && ball.x < displayMode.w - ball.width)
-    {
-        ball.x += multiDer * delta_time;
-    }
+   if (ball.up && ball.y > 0)
+   {
+      ball.y -= multiDer * delta_time;
+   }
+   if (ball.down && ball.y < displayMode.h - ball.height)
+   {
+      ball.y += multiDer * delta_time;
+   }
+   if (ball.left && ball.x > 0)
+   {
+      ball.x -= multiDer * delta_time;
+   }
+   if (ball.right && ball.x < displayMode.w - ball.width)
+   {
+      ball.x += multiDer * delta_time;
+   }
 
-    if (ball.x < 0)
-    {
-        ball.x = 0;
-    }
-    if (ball.x > displayMode.w - ball.width)
-    {
-        ball.x = displayMode.w - ball.width;
-    }
-    if (ball.y < 0)
-    {
-        ball.y = 0;
-    }
-    if (ball.y > displayMode.h - ball.height)
-    {
-        ball.y = displayMode.h - ball.height;
-    }
+   if (ball.x < 0)
+   {
+      ball.x = 0;
+   }
+   if (ball.x > displayMode.w - ball.width)
+   {
+      ball.x = displayMode.w - ball.width;
+   }
+   if (ball.y < 0)
+   {
+      ball.y = 0;
+   }
+   if (ball.y > displayMode.h - ball.height)
+   {
+      ball.y = displayMode.h - ball.height;
+   }
 };
 
 void render()
@@ -372,13 +367,16 @@ void render()
    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
    SDL_RenderFillRect(renderer, &ball_rect);
 
-   SDL_Rect enemy_rect = {
-       (int)enemy.x,
-       (int)enemy.y,
-       (int)enemy.width,
-       (int)enemy.height};
-   SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-   SDL_RenderFillRect(renderer, &enemy_rect);
+
+   for (int i = 0; i < MAX_ENEMIES; ++i) {
+      SDL_Rect enemy_rect = {
+       (int)enemies[i].x,
+       (int)enemies[i].y,
+       (int)enemies[i].width,
+       (int)enemies[i].height};
+      SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+      SDL_RenderFillRect(renderer, &enemy_rect);
+   }
 
    if (bullet.isFired == 1 || bullet.isFired == 2)
    {
@@ -389,6 +387,16 @@ void render()
           (int)bullet.height};
       SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
       SDL_RenderFillRect(renderer, &bullet_rect);
+   }
+
+   if (ball.dashCd == 0) {
+   SDL_Rect dashCdBtn_rect = {(displayMode.w + 30) / 2, (int)30, (int)30, (int)30};
+   SDL_SetRenderDrawColor(renderer, 0,  255, 0, 255);
+   SDL_RenderFillRect(renderer, &dashCdBtn_rect);
+   } else {
+      SDL_Rect dashCdBtn_rect = {(displayMode.w + 30) / 2, (int)30, (int)30, (int)30};
+      SDL_SetRenderDrawColor(renderer, 0,  130, 0, 255);
+      SDL_RenderFillRect(renderer, &dashCdBtn_rect);
    }
 
    SDL_RenderPresent(renderer);
