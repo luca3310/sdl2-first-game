@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include "./constants.h"
 #include <time.h>
 
@@ -9,7 +10,26 @@ SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_DisplayMode displayMode;
 
+TTF_Font *ourFont;
+SDL_Surface *surfaceText = NULL;
+SDL_Texture *textureText = NULL;
+
+float fps;
+double fpsCd = 1;
+
+SDL_Texture *number0TextureText = NULL;
+SDL_Texture *number1TextureText = NULL;
+SDL_Texture *number2TextureText = NULL;
+SDL_Texture *number3TextureText = NULL;
+SDL_Texture *number4TextureText = NULL;
+SDL_Texture *number5TextureText = NULL;
+SDL_Texture *number6TextureText = NULL;
+SDL_Texture *number7TextureText = NULL;
+SDL_Texture *number8TextureText = NULL;
+SDL_Texture *number9TextureText = NULL;
+
 int last_frame_time = 0;
+int score = 0;
 
 struct ball
 {
@@ -25,18 +45,6 @@ struct ball
    double dashSpeed;
 } ball;
 
-
-
-struct enemy
-{
-   float x;
-   float y;
-   float width;
-   float height;
-};
-
-struct enemy enemies[MAX_ENEMIES];
-
 struct bullet
 {
    float x;
@@ -49,15 +57,86 @@ struct bullet
    int isFired;
 } bullet;
 
-// struct enemyBullet
-// {
-//    float x;
-//    float y;
-//    float width;
-//    float height;
-//    double dir;
-//    double isFired;
-// } enemyBullet;
+struct EnemyBullet
+{
+   float bx;
+   float by;
+   float bWidth;
+   float bHeight;
+   double bDir;
+   int isFired;
+};
+
+struct Enemy
+{
+   float x;
+   float y;
+   float width;
+   float height;
+   float bulletCd;
+   struct EnemyBullet eBullet;
+};
+
+struct EnemyList
+{
+   struct Enemy *enemies;
+   int size;
+} enemyList;
+
+void initEnemyList(struct EnemyList *list)
+{
+   list->enemies = NULL;
+   list->size = 0;
+}
+
+void addEnemy(struct EnemyList *list, struct Enemy newEnemy)
+{
+   list->enemies = realloc(list->enemies, (list->size + 1) * sizeof(struct Enemy));
+   if (list->enemies != NULL)
+   {
+      list->enemies[list->size] = newEnemy;
+      list->size++;
+   }
+   else
+   {
+      printf("Error: Memory allocation failed\n");
+   }
+}
+
+void removeEnemy(struct EnemyList *list, int index)
+{
+   if (index >= 0 && index < list->size)
+   {
+      // Shift elements to fill the gap
+      for (int i = index; i < list->size - 1; i++)
+      {
+         list->enemies[i] = list->enemies[i + 1];
+      }
+      list->size--;
+
+      // Resize the allocated memory
+      list->enemies = realloc(list->enemies, list->size * sizeof(struct Enemy));
+   }
+   else
+   {
+      printf("Error: Invalid index\n");
+   }
+}
+
+void cleanupEnemyList(struct EnemyList *list)
+{
+   free(list->enemies);
+   list->enemies = NULL;
+   list->size = 0;
+}
+
+ struct spawner {
+   double currentSpawnCooldown;
+   int maxSpawnCooldown;
+   int spawnAmount;
+   double spawnAmountIncreaseCooldown;
+   int maxSpawnAmountIncreaseCooldown;
+} spawner;
 
 int initialize_window(void)
 {
@@ -87,6 +166,19 @@ int initialize_window(void)
       if (!renderer)
       {
          fprintf(stderr, "Error creating SDL renderer.\n");
+         return FALSE;
+      }
+
+      if (TTF_Init() == -1)
+      {
+         fprintf(stderr, "Error initializing TTF\n");
+         return FALSE;
+      }
+
+      ourFont = TTF_OpenFont("./fonts/IMMORTAL.ttf", 32);
+      if (ourFont == NULL)
+      {
+         fprintf(stderr, "Error opening font\n");
          return FALSE;
       }
 
@@ -164,6 +256,7 @@ void process_input()
          bullet.isFired = 2;
          bullet.speedUp = 1000;
       };
+      break;
 
    case SDL_KEYUP:
       if (event.key.keysym.sym == SDLK_w)
@@ -182,6 +275,7 @@ void process_input()
       {
          ball.right = 0;
       };
+      break;
    };
 };
 
@@ -198,13 +292,7 @@ void setup()
    ball.dashCd = 0;
    ball.dashSpeed = 0;
 
-
-   for (int i = 0; i < MAX_ENEMIES; ++i) {
-      enemies[i].width = 15;
-      enemies[i].height = 15;
-      enemies[i].x = random_float(0, displayMode.w - enemies[i].width);
-      enemies[i].y = random_float(0, displayMode.h - enemies[i].height);
-   }
+   
 
    bullet.isFired = 0;
    bullet.width = 10;
@@ -213,13 +301,60 @@ void setup()
 
    srand(time(NULL));
 
-   // enemyBullet.isFired = 0;
-   // enemyBullet.width = 10;
-   // enemyBullet.height = 10;
+   spawner.maxSpawnCooldown = 5;
+   spawner.currentSpawnCooldown = 1;
+   spawner.spawnAmount = 1;
+   spawner.spawnAmountIncreaseCooldown = 20;
+   spawner.maxSpawnAmountIncreaseCooldown = 20;
+
+   initEnemyList(&enemyList);
+
+   SDL_Color white = {0xFF, 0xFF, 0xFF, 0};
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "0", white);
+   number0TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "1", white);
+   number1TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "2", white);
+   number2TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "3", white);
+   number3TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "4", white);
+   number4TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "5", white);
+   number5TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "6", white);
+   number6TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "7", white);
+   number7TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "8", white);
+   number8TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "9", white);
+   number9TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
 };
 
 void update()
 {
+
    while (!SDL_TICKS_PASSED(SDL_GetTicks(), last_frame_time + FRAME_TARGET_TIME))
       ;
 
@@ -227,13 +362,48 @@ void update()
 
    last_frame_time = SDL_GetTicks();
 
+   if (fpsCd > 0)
+   {
+      fpsCd -= delta_time;
+      if (fpsCd < 0)
+      {
+         fpsCd = 0;
+      }
+   }
+   if (fpsCd == 0) {
+      fpsCd = 1;
+      fps = 1.0f / delta_time;
+   }
+
+   // for (int i = 0; i < 5000000; ++i) {
+   // }
+
    SDL_Rect ball_rect = {(int)ball.x, (int)ball.y, (int)ball.width, (int)ball.height};
-   for (int i = 0; i < MAX_ENEMIES; ++i) {
-      SDL_Rect enemy_rect = {(int)enemies[i].x, (int)enemies[i].y, (int)enemies[i].width, (int)enemies[i].height};
-      if (check_collision(ball_rect, enemy_rect)) {
-         ball.x = 20;
-         ball.y = 20;
-         bullet.isFired = 0;
+
+   for (int i = 0; i < enemyList.size; i++)
+   {
+      if (enemyList.enemies[i].eBullet.isFired == 0)
+      {
+
+         enemyList.enemies[i].eBullet.isFired = 1;
+         enemyList.enemies[i].eBullet.bx = enemyList.enemies[i].x;
+         enemyList.enemies[i].eBullet.by = enemyList.enemies[i].y;
+         enemyList.enemies[i].eBullet.bDir = atan2(ball.y - enemyList.enemies[i].eBullet.by, ball.x - enemyList.enemies[i].eBullet.bx);
+      }
+      else
+      {
+         enemyList.enemies[i].eBullet.bx += 400.0f * cos(enemyList.enemies[i].eBullet.bDir) * delta_time;
+         enemyList.enemies[i].eBullet.by += 400.0f * sin(enemyList.enemies[i].eBullet.bDir) * delta_time;
+         if (enemyList.enemies[i].eBullet.bx < 0 || enemyList.enemies[i].eBullet.bx > displayMode.w - enemyList.enemies[i].eBullet.bWidth || enemyList.enemies[i].eBullet.by < 0 || enemyList.enemies[i].eBullet.by > displayMode.h - enemyList.enemies[i].eBullet.bHeight)
+         {
+            enemyList.enemies[i].eBullet.isFired = 0;
+         }
+      }
+      SDL_Rect eBullet_rect = {(int)enemyList.enemies[i].eBullet.bx, (int)enemyList.enemies[i].eBullet.by, 10, 10};
+      if (check_collision(ball_rect, eBullet_rect))
+      {
+         printf("%d",score);
+         game_is_running = FALSE;
       }
    }
 
@@ -259,12 +429,13 @@ void update()
          bullet.y += sin(bullet.prevDir) * bullet_speed * delta_time;
       }
 
-
-      for (int i = 0; i < MAX_ENEMIES; ++i) {
-         SDL_Rect enemy_rect = {(int)enemies[i].x, (int)enemies[i].y, (int)enemies[i].width, (int)enemies[i].height};
-         if(check_collision(bullet_rect, enemy_rect)) {
-            enemies[i].x = random_float(0, displayMode.w - enemies[i].width);
-            enemies[i].y = random_float(0, displayMode.h - enemies[i].height);
+      for (int i = 0; i < enemyList.size; i++)
+      {
+         SDL_Rect enemy_rect = {(int)enemyList.enemies[i].x, (int)enemyList.enemies[i].y, (int)enemyList.enemies[i].width, (int)enemyList.enemies[i].height};
+         if (check_collision(bullet_rect, enemy_rect))
+         {
+                removeEnemy(&enemyList, i);
+                score += 1;
          }
       }
 
@@ -274,13 +445,29 @@ void update()
       }
    }
 
-   // if (enemyBullet.isFired == 0) {
-   //    enemyBullet.x = enemy.x;
-   //    enemyBullet.y = enemy.y;
-   //    enemyBullet.dir = atan2(enemyBullet.x - ball.y, enemyBullet.x - ball.x);
-   //    enemyBullet.x += cos(enemyBullet.dir) * 400.0f * delta_time;
-   //    enemyBullet.y += sin(enemyBullet.dir) * 400.0f * delta_time;
-   // }
+   
+
+   if (spawner.spawnAmountIncreaseCooldown == 0) {
+      spawner.spawnAmountIncreaseCooldown = spawner.maxSpawnAmountIncreaseCooldown;
+      spawner.spawnAmount += 1;
+   }
+
+   if (spawner.spawnAmountIncreaseCooldown > 0)
+   {
+      spawner.spawnAmountIncreaseCooldown -= delta_time;
+      if (spawner.spawnAmountIncreaseCooldown < 0)
+      {
+         spawner.spawnAmountIncreaseCooldown = 0;
+      }
+   }
+
+   if (spawner.currentSpawnCooldown == 0) {
+      spawner.currentSpawnCooldown = spawner.maxSpawnCooldown;
+      for (int i = 0; i < spawner.spawnAmount; ++i) {
+      struct Enemy enemyInstance = {random_float(0, displayMode.w - 15), random_float(0, displayMode.h - 15), 15, 15, 2.0, {0, 0, 10, 10, 0, 0}};
+      addEnemy(&enemyList, enemyInstance);
+      }
+   }
 
    if (ball.dashCd > 0)
    {
@@ -288,6 +475,15 @@ void update()
       if (ball.dashCd < 0)
       {
          ball.dashCd = 0;
+      }
+   }
+
+   if (spawner.currentSpawnCooldown > 0)
+   {
+      spawner.currentSpawnCooldown -= delta_time;
+      if (spawner.currentSpawnCooldown < 0)
+      {
+         spawner.currentSpawnCooldown = 0;
       }
    }
 
@@ -309,15 +505,7 @@ void update()
       }
    }
 
-   int multiDer;
-   if (ball.up + ball.down + ball.left + ball.right == 2)
-   {
-      multiDer = 100 + ball.dashSpeed;
-   }
-   else
-   {
-      multiDer = 200 + ball.dashSpeed;
-   }
+   int multiDer = 200 + ball.dashSpeed;
 
    if (ball.up && ball.y > 0)
    {
@@ -367,15 +555,23 @@ void render()
    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
    SDL_RenderFillRect(renderer, &ball_rect);
 
-
-   for (int i = 0; i < MAX_ENEMIES; ++i) {
+   for (int i = 0; i < enemyList.size; i++)
+   {
       SDL_Rect enemy_rect = {
-       (int)enemies[i].x,
-       (int)enemies[i].y,
-       (int)enemies[i].width,
-       (int)enemies[i].height};
+          (int)enemyList.enemies[i].x,
+          (int)enemyList.enemies[i].y,
+          (int)enemyList.enemies[i].width,
+          (int)enemyList.enemies[i].height};
       SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
       SDL_RenderFillRect(renderer, &enemy_rect);
+
+      SDL_Rect enemy_bullet_rect = {
+          (int)enemyList.enemies[i].eBullet.bx,
+          (int)enemyList.enemies[i].eBullet.by,
+          (int)enemyList.enemies[i].eBullet.bWidth,
+          (int)enemyList.enemies[i].eBullet.bHeight};
+
+      SDL_RenderFillRect(renderer, &enemy_bullet_rect);
    }
 
    if (bullet.isFired == 1 || bullet.isFired == 2)
@@ -389,23 +585,157 @@ void render()
       SDL_RenderFillRect(renderer, &bullet_rect);
    }
 
-   if (ball.dashCd == 0) {
-   SDL_Rect dashCdBtn_rect = {(displayMode.w + 30) / 2, (int)30, (int)30, (int)30};
-   SDL_SetRenderDrawColor(renderer, 0,  255, 0, 255);
-   SDL_RenderFillRect(renderer, &dashCdBtn_rect);
-   } else {
-      SDL_Rect dashCdBtn_rect = {(displayMode.w + 30) / 2, (int)30, (int)30, (int)30};
-      SDL_SetRenderDrawColor(renderer, 0,  130, 0, 255);
-      SDL_RenderFillRect(renderer, &dashCdBtn_rect);
+   int dashCd = ceil(ball.dashCd);
+
+   SDL_Rect dashCdBtn_rect = {(displayMode.w - 15) / 2, (int)30, (int)30, (int)30};
+
+   switch (dashCd)
+   {
+   case 0:
+      SDL_RenderCopy(renderer, number0TextureText, NULL, &dashCdBtn_rect);
+      break;
+   case 1:
+      SDL_RenderCopy(renderer, number1TextureText, NULL, &dashCdBtn_rect);
+      break;
+   case 2:
+      SDL_RenderCopy(renderer, number2TextureText, NULL, &dashCdBtn_rect);
+      break;
    }
+
+   int fpsInt = ceil(fps);
+   int digitCount = 0;
+   int temp = fpsInt;
+   int originalTemp = fpsInt;
+
+   while (temp != 0)
+   {
+      temp /= 10;
+      ++digitCount;
+   }
+
+   temp = originalTemp;
+   int pos = 600;
+
+   for (int i = 0; i < digitCount; ++i)
+   {
+      int digit = temp % 10;
+      SDL_Rect FpsCounter_rect = {(int)pos, (int)30, (int)30, (int)30};
+      switch (digit)
+      {
+      case 0:
+         SDL_RenderCopy(renderer, number0TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 1:
+         SDL_RenderCopy(renderer, number1TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 2:
+         SDL_RenderCopy(renderer, number2TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 3:
+         SDL_RenderCopy(renderer, number3TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 4:
+         SDL_RenderCopy(renderer, number4TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 5:
+         SDL_RenderCopy(renderer, number5TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 6:
+         SDL_RenderCopy(renderer, number6TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 7:
+         SDL_RenderCopy(renderer, number7TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 8:
+         SDL_RenderCopy(renderer, number8TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 9:
+         SDL_RenderCopy(renderer, number9TextureText, NULL, &FpsCounter_rect);
+         break;
+      }
+
+      pos -= 30;
+      temp /= 10;
+   }
+
+   int digitCount2 = 0;
+   int temp2 = score;
+   int originalTemp2 = score;
+
+   while (temp2 != 0)
+   {
+      temp2 /= 10;
+      ++digitCount2;
+   }
+
+   temp2 = originalTemp2;
+   int pos2 = 100;
+
+   for (int i = 0; i < digitCount2; ++i)
+   {
+      int digit = temp2 % 10;
+      SDL_Rect FpsCounter_rect = {(int)pos2, (int)30, (int)30, (int)30};
+      switch (digit)
+      {
+      case 0:
+         SDL_RenderCopy(renderer, number0TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 1:
+         SDL_RenderCopy(renderer, number1TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 2:
+         SDL_RenderCopy(renderer, number2TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 3:
+         SDL_RenderCopy(renderer, number3TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 4:
+         SDL_RenderCopy(renderer, number4TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 5:
+         SDL_RenderCopy(renderer, number5TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 6:
+         SDL_RenderCopy(renderer, number6TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 7:
+         SDL_RenderCopy(renderer, number7TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 8:
+         SDL_RenderCopy(renderer, number8TextureText, NULL, &FpsCounter_rect);
+         break;
+      case 9:
+         SDL_RenderCopy(renderer, number9TextureText, NULL, &FpsCounter_rect);
+         break;
+      }
+
+      pos2 -= 30;
+      temp2 /= 10;
+   }
+
+
 
    SDL_RenderPresent(renderer);
 };
 
 void destroy_window()
 {
+   cleanupEnemyList(&enemyList);
+   SDL_DestroyTexture(number0TextureText);
+   SDL_DestroyTexture(number1TextureText);
+   SDL_DestroyTexture(number2TextureText);
+   SDL_DestroyTexture(number3TextureText);
+   SDL_DestroyTexture(number4TextureText);
+   SDL_DestroyTexture(number5TextureText);
+   SDL_DestroyTexture(number6TextureText);
+   SDL_DestroyTexture(number7TextureText);
+   SDL_DestroyTexture(number8TextureText);
+   SDL_DestroyTexture(number9TextureText);
+   SDL_DestroyTexture(textureText);
    SDL_DestroyRenderer(renderer);
    SDL_DestroyWindow(window);
+   TTF_CloseFont(ourFont);
+   TTF_Quit();
    SDL_Quit();
 }
 
