@@ -355,12 +355,25 @@ void setup()
 void update()
 {
 
-   while (!SDL_TICKS_PASSED(SDL_GetTicks(), last_frame_time + FRAME_TARGET_TIME))
-      ;
-
-   float delta_time = (SDL_GetTicks() - last_frame_time) / 1000.0f;
+   // while (!SDL_TICKS_PASSED(SDL_GetTicks(), last_frame_time + FRAME_TARGET_TIME));
 
    last_frame_time = SDL_GetTicks();
+
+
+   int time_to_wait = FRAME_TARGET_TIME - (SDL_GetTicks() - last_frame_time);
+
+   if (time_to_wait > 0 && time_to_wait <= FRAME_TARGET_TIME) {
+      SDL_Delay(time_to_wait);
+   }
+
+   // float delta_time = (SDL_GetTicks() - last_frame_time) / 1000.0f;
+
+   static Uint64 last_counter = 0;
+    Uint64 counter = SDL_GetPerformanceCounter();
+    double delta_time = (double)(counter - last_counter) / SDL_GetPerformanceFrequency();
+    last_counter = counter;
+
+
 
    if (fpsCd > 0)
    {
@@ -374,6 +387,7 @@ void update()
       fpsCd = 1;
       fps = 1.0f / delta_time;
    }
+
 
    // for (int i = 0; i < 5000000; ++i) {
    // }
