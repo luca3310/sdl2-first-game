@@ -10,6 +10,7 @@ int counter = 0;
 
 int game_is_running = FALSE;
 int game_is_pause = FALSE;
+int game_is_over = FALSE;
 
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
@@ -36,6 +37,9 @@ SDL_Texture *number7TextureText = NULL;
 SDL_Texture *number8TextureText = NULL;
 SDL_Texture *number9TextureText = NULL;
 
+SDL_Texture *scoreTextureText = NULL;
+SDL_Texture *fpsTextureText = NULL;
+
 int last_frame_time = 0;
 int score = 0;
 
@@ -51,6 +55,8 @@ struct ball
    int right;
    double dashCd;
    double dashSpeed;
+   double attackImmune;
+   int health;
 } ball;
 
 struct bullet
@@ -82,6 +88,8 @@ struct Enemy
    float width;
    float height;
    float bulletCd;
+   double attackImmune;
+   int health;
    struct EnemyBullet eBullet;
 };
 
@@ -345,6 +353,8 @@ void player_setup()
    ball.right = 0;
    ball.dashCd = 0;
    ball.dashSpeed = 0;
+   ball.health = 3;
+   ball.attackImmune = 0;
 
    bullet.isFired = 0;
    bullet.width = 10;
@@ -405,6 +415,14 @@ void texture_setup()
    surfaceText = TTF_RenderText_Solid(ourFont, "9", white);
    number9TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
    SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "Score: ", white);
+   scoreTextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "Fps: ", white);
+   fpsTextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
 }
 void setup()
 {
@@ -422,52 +440,65 @@ int check_collision(SDL_Rect rect1, SDL_Rect rect2)
            rect1.y + rect1.h > rect2.y);
 }
 
-
+void cooldown_decrease(double *cd, double delta_time, int multiplier)
+{
+   if (*cd > 0)
+   {
+      *cd -= delta_time * multiplier;
+      if (*cd < 0)
+      {
+         *cd = 0;
+      }
+   }
+}
 
 void cap_frame_rate(Uint64 starting_tick)
 {
-    Uint64 target_ticks = starting_tick + SDL_GetPerformanceFrequency() / MAX_FPS;
+   Uint64 target_ticks = starting_tick + SDL_GetPerformanceFrequency() / MAX_FPS;
 
-    Uint64 current_tick = SDL_GetPerformanceCounter();
-    if (current_tick < target_ticks)
-    {
-        Uint64 delay_ticks = target_ticks - current_tick;
-        Uint32 delay_ms = (delay_ticks * 1000) / SDL_GetPerformanceFrequency();
-        SDL_Delay(delay_ms);
-    }
+   Uint64 current_tick = SDL_GetPerformanceCounter();
+   if (current_tick < target_ticks)
+   {
+      Uint64 delay_ticks = target_ticks - current_tick;
+      Uint32 delay_ms = (delay_ticks * 1000) / SDL_GetPerformanceFrequency();
+      SDL_Delay(delay_ms);
+   }
 }
 
 double setup_update()
 {
-    static Uint64 last_counter = 0;
-    Uint64 counter = SDL_GetPerformanceCounter();
+   static Uint64 last_counter = 0;
+   Uint64 counter = SDL_GetPerformanceCounter();
 
-    double delta_time = (double)(counter - last_counter) / SDL_GetPerformanceFrequency();
-    last_counter = counter;
+   double delta_time = (double)(counter - last_counter) / SDL_GetPerformanceFrequency();
+   last_counter = counter;
 
-    cap_frame_rate(counter);
+   cap_frame_rate(counter);
 
-    return delta_time;
+   return delta_time;
 }
 
-void calculate_fps(double delta_time) {
-    static double accumulated_time = 0.0;
-    static int frames = 0;
+void calculate_fps(double delta_time)
+{
+   static double accumulated_time = 0.0;
+   static int frames = 0;
 
-    accumulated_time += delta_time;
-    frames++;
+   accumulated_time += delta_time;
+   frames++;
 
-    if (accumulated_time >= 1.0) {
-        fps = frames / accumulated_time;
-        accumulated_time = 0.0;
-        frames = 0;
-    }
+   if (accumulated_time >= 1.0)
+   {
+      fps = frames / accumulated_time;
+      accumulated_time = 0.0;
+      frames = 0;
+   }
 }
 
-
-void enemy_update(SDL_Rect ball_rect, double delta_time) {
+void enemy_update(SDL_Rect ball_rect, double delta_time)
+{
    for (int i = 0; i < enemyList.size; i++)
    {
+      cooldown_decrease(&enemyList.enemies[i].attackImmune, delta_time, 1);
       if (enemyList.enemies[i].eBullet.isFired == 0)
       {
 
@@ -488,12 +519,17 @@ void enemy_update(SDL_Rect ball_rect, double delta_time) {
       SDL_Rect eBullet_rect = {(int)enemyList.enemies[i].eBullet.bx, (int)enemyList.enemies[i].eBullet.by, 10, 10};
       if (check_collision(ball_rect, eBullet_rect))
       {
-         // game over
+         if (ball.attackImmune == 0 && ball.dashSpeed == 0)
+         {
+            ball.attackImmune = 2;
+            ball.health -= 1;
+         }
       }
    }
 }
 
-void bullet_update(SDL_Rect ball_rect, double delta_time) {
+void bullet_update(SDL_Rect ball_rect, double delta_time)
+{
    if (bullet.isFired == 1 || bullet.isFired == 2)
    {
       float bullet_speed = 400.0f + bullet.speedUp;
@@ -521,8 +557,19 @@ void bullet_update(SDL_Rect ball_rect, double delta_time) {
          SDL_Rect enemy_rect = {(int)enemyList.enemies[i].x, (int)enemyList.enemies[i].y, (int)enemyList.enemies[i].width, (int)enemyList.enemies[i].height};
          if (check_collision(bullet_rect, enemy_rect))
          {
-            removeEnemy(&enemyList, i);
-            score += 1;
+            if (enemyList.enemies[i].attackImmune == 0)
+            {
+               if (enemyList.enemies[i].health > 1)
+               {
+                  enemyList.enemies[i].attackImmune = 0.5;
+                  enemyList.enemies[i].health -= 1;
+               }
+               else
+               {
+                  removeEnemy(&enemyList, i);
+                  score += 1;
+               }
+            }
          }
       }
 
@@ -533,7 +580,8 @@ void bullet_update(SDL_Rect ball_rect, double delta_time) {
    }
 }
 
-void update_spawner () {
+void update_spawner()
+{
    if (spawner.spawnAmountIncreaseCooldown == 0)
    {
       spawner.spawnAmountIncreaseCooldown = spawner.maxSpawnAmountIncreaseCooldown;
@@ -545,13 +593,14 @@ void update_spawner () {
       spawner.currentSpawnCooldown = spawner.maxSpawnCooldown;
       for (int i = 0; i < spawner.spawnAmount; ++i)
       {
-         struct Enemy enemyInstance = {random_float(0, displayMode.w - 15), random_float(0, displayMode.h - 15), 15, 15, 2.0, {0, 0, 10, 10, 0, 0}};
+         struct Enemy enemyInstance = {random_float(0, displayMode.w - 15), random_float(0, displayMode.h - 15), 15, 15, 2.0, 0, 2, {0, 0, 10, 10, 0, 0}};
          addEnemy(&enemyList, enemyInstance);
       }
    }
 }
 
-void player_movement (double delta_time) {
+void player_movement(double delta_time)
+{
    int player_speed = 200 + ball.dashSpeed;
 
    if (ball.up && ball.y > 0)
@@ -589,16 +638,6 @@ void player_movement (double delta_time) {
    }
 }
 
-void cooldown_decrease (double *cd, double delta_time, int multiplier) {
-      if (*cd > 0) {
-         *cd -= delta_time * multiplier;
-         if (*cd < 0) {
-            *cd = 0;
-         }
-      }
-}
-
-
 void update()
 {
    double delta_time = setup_update();
@@ -610,23 +649,31 @@ void update()
    enemy_update(ball_rect, delta_time);
    bullet_update(ball_rect, delta_time);
    update_spawner();
-   player_movement(delta_time);  
+   player_movement(delta_time);
 
    cooldown_decrease(&spawner.currentSpawnCooldown, delta_time, 1);
    cooldown_decrease(&ball.dashCd, delta_time, 1);
-   cooldown_decrease(&spawner.currentSpawnCooldown, delta_time, 1);
    cooldown_decrease(&bullet.speedUp, delta_time, 1300);
    cooldown_decrease(&ball.dashSpeed, delta_time, 3000);
+   cooldown_decrease(&ball.attackImmune, delta_time, 1);
 };
 
-void render_player() {
+void render_player()
+{
 
    SDL_Rect ball_rect = {
        (int)ball.x,
        (int)ball.y,
        (int)ball.width,
        (int)ball.height};
-   SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+   if (ball.dashSpeed > 0 || ball.attackImmune > 0)
+   {
+      SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+   }
+   else
+   {
+      SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+   }
    SDL_RenderFillRect(renderer, &ball_rect);
 
    if (bullet.isFired == 1 || bullet.isFired == 2)
@@ -641,7 +688,8 @@ void render_player() {
    }
 }
 
-void render_enemies() {
+void render_enemies()
+{
    for (int i = 0; i < enemyList.size; i++)
    {
       SDL_Rect enemy_rect = {
@@ -649,7 +697,14 @@ void render_enemies() {
           (int)enemyList.enemies[i].y,
           (int)enemyList.enemies[i].width,
           (int)enemyList.enemies[i].height};
-      SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+      if (enemyList.enemies[i].attackImmune > 0)
+      {
+         SDL_SetRenderDrawColor(renderer, 150, 0, 0, 255);
+      }
+      else
+      {
+         SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+      }
       SDL_RenderFillRect(renderer, &enemy_rect);
 
       SDL_Rect enemy_bullet_rect = {
@@ -662,18 +717,19 @@ void render_enemies() {
    }
 }
 
-void draw_number(int number, int xpos) {
-   if (number == 0) {
-         SDL_Rect number_rect = {(int)xpos, (int)30, (int)30, (int)30};
-         SDL_RenderCopy(renderer, number0TextureText, NULL, &number_rect);
-         return;
+void draw_number(int number, int xpos, int ypos)
+{
+   if (number == 0)
+   {
+      SDL_Rect number_rect = {(int)xpos, (int)ypos, (int)20, (int)40};
+      SDL_RenderCopy(renderer, number0TextureText, NULL, &number_rect);
+      return;
    }
 
    int digitCount = 0;
    int temp = number;
    int originalTemp = number;
 
-   // Calculate the number of digits in the given number
    while (temp != 0)
    {
       temp /= 10;
@@ -681,14 +737,19 @@ void draw_number(int number, int xpos) {
    }
 
    temp = originalTemp;
+   int digits[5];
+
+   for (int i = digitCount - 1; i >= 0; --i)
+   {
+      digits[i] = temp % 10;
+      temp /= 10;
+   }
+
    for (int i = 0; i < digitCount; ++i)
-   {  
-      int digit = temp % 10;
+   {
+      int digit = digits[i];
 
-      SDL_Rect number_rect = {(int)xpos, (int)30, (int)30, (int)30};
-
-
-      // Ensure that the rendering position is within the visible range
+      SDL_Rect number_rect = {(int)xpos, (int)ypos, (int)20, (int)40};
 
       switch (digit)
       {
@@ -723,24 +784,58 @@ void draw_number(int number, int xpos) {
          SDL_RenderCopy(renderer, number9TextureText, NULL, &number_rect);
          break;
       }
-
-      // Update the rendering position for the next digit
-      xpos -= 30;
-      temp /= 10;
+      xpos += 20;
    }
 }
 
+void drawText(SDL_Texture *textTexture, int xpos, int ypos)
+{
+   int textWidth, textHeight;
+   SDL_QueryTexture(textTexture, NULL, NULL, &textWidth, &textHeight);
+   SDL_Rect text_rect = {(int)xpos, (int)ypos, (int)textWidth, (int)textHeight};
 
-void render_ui() {
+   SDL_RenderCopy(renderer, textTexture, NULL, &text_rect);
+}
 
-   draw_number(ceil(ball.dashCd), 900);
-   draw_number(ceil(fps), 600);
-   draw_number(score, 300);
+void draw_text_with_number(SDL_Texture *textTexture, int number, int xpos, int ypos)
+{
+   int textWidth, textHeight;
+   SDL_QueryTexture(textTexture, NULL, NULL, &textWidth, &textHeight);
+   SDL_Rect text_rect = {(int)xpos, (int)ypos, (int)textWidth, (int)textHeight};
+   SDL_RenderCopy(renderer, textTexture, NULL, &text_rect);
+   xpos += textWidth;
 
+   draw_number(number, xpos, ypos);
+}
+
+void draw_hearths(int xpos, int ypos, int amount, int health)
+{
+   for (int i = 0; i < amount; ++i)
+   {
+      SDL_Rect hearth_rect = {(int)xpos, (int)ypos, (int)100, (int)100};
+      if (health > i)
+      {
+         SDL_SetRenderDrawColor(renderer, 0, 150, 0, 255);
+      }
+      else
+      {
+         SDL_SetRenderDrawColor(renderer, 0, 50, 0, 255);
+      }
+      SDL_RenderFillRect(renderer, &hearth_rect);
+      xpos += 150;
+   }
+}
+
+void render_ui()
+{
+   draw_text_with_number(fpsTextureText, ceil(fps), displayMode.w - 200, 30);
+   draw_text_with_number(scoreTextureText, score, displayMode.w - 200, 80);
+   draw_number(ceil(ball.dashCd), ball.x - 2.5, ball.y + 40);
+   draw_hearths(30, 30, 3, ball.health);
 }
 
 void render()
-{  
+{
    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
    SDL_RenderClear(renderer);
    render_player();
@@ -756,12 +851,44 @@ void pause_render()
    SDL_RenderPresent(renderer);
 }
 
+void draw_button(SDL_Texture *textTexture, int height, int width, int xpos, int ypos)
+{
+   SDL_Rect button_rect = {(int)xpos, (int)ypos, (int)width, (int)height};
+   SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+   SDL_RenderFillRect(renderer, &button_rect);
+
+   // Get the dimensions of the text texture
+   int textWidth, textHeight;
+   SDL_QueryTexture(textTexture, NULL, NULL, &textWidth, &textHeight);
+
+   // Calculate the position to center the text within the button
+   int textX = xpos + (width - textWidth) / 2;
+   int textY = ypos + (height - textHeight) / 2;
+
+   SDL_Rect text_rect = {textX, textY, textWidth, textHeight};
+   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+   SDL_RenderCopy(renderer, textTexture, NULL, &text_rect);
+}
+
+
+void game_over_render()
+{
+   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 100);
+   SDL_RenderClear(renderer);
+   draw_button(fpsTextureText, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2 + 100);
+   draw_button(scoreTextureText, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2 - 100);
+   SDL_RenderPresent(renderer);
+}
+
 void destroy_window()
 {
    cleanupEnemyList(&enemyList);
 
    // SDL_FreeSurface(image);
    // SDL_DestroyTexture(ourPNG);
+
+   SDL_DestroyTexture(scoreTextureText);
+   SDL_DestroyTexture(fpsTextureText);
 
    SDL_DestroyTexture(number0TextureText);
    SDL_DestroyTexture(number1TextureText);
@@ -788,10 +915,10 @@ int main(int argc, char *argv[])
 
    while (game_is_running)
    {
-      if (game_is_pause)
+      if (game_is_over)
       {
          pause_process_input();
-         render();
+         game_over_render();
       }
       else
       {
