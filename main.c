@@ -2,13 +2,21 @@
 #include <math.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_image.h>
 #include "./constants.h"
 #include <time.h>
 
+int counter = 0;
+
 int game_is_running = FALSE;
+int game_is_pause = FALSE;
+
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_DisplayMode displayMode;
+
+// SDL_Surface *image;
+// SDL_Texture *ourPNG;
 
 TTF_Font *ourFont;
 SDL_Surface *surfaceText = NULL;
@@ -130,7 +138,8 @@ void cleanupEnemyList(struct EnemyList *list)
    list->size = 0;
 }
 
- struct spawner {
+struct spawner
+{
    double currentSpawnCooldown;
    int maxSpawnCooldown;
    int spawnAmount;
@@ -155,7 +164,7 @@ int initialize_window(void)
           SDL_WINDOWPOS_CENTERED,
           displayMode.w,
           displayMode.h,
-          SDL_WINDOW_FULLSCREEN);
+          0);
       if (!window)
       {
          fprintf(stderr, "Error creating SDL Window.\n");
@@ -182,16 +191,24 @@ int initialize_window(void)
          return FALSE;
       }
 
+      // int flags = IMG_INIT_PNG;
+      // int initStatus = IMG_Init(flags);
+
+      // if ((initStatus && flags) != flags)
+      // {
+      //    printf("SDL2_Image format not available");
+      // }
+
+      // image = IMG_Load("./images/mario.png");
+      // if (!image)
+      // {
+      //    printf("Image not loaded...");
+      // }
+
+      // ourPNG = SDL_CreateTextureFromSurface(renderer, image);
+
       return TRUE;
    }
-}
-
-int check_collision(SDL_Rect rect1, SDL_Rect rect2)
-{
-   return (rect1.x < rect2.x + rect2.w &&
-           rect1.x + rect1.w > rect2.x &&
-           rect1.y < rect2.y + rect2.h &&
-           rect1.y + rect1.h > rect2.y);
 }
 
 float random_float(float min, float max)
@@ -203,83 +220,120 @@ void process_input()
 {
    SDL_Event event;
    SDL_PollEvent(&event);
-
    switch (event.type)
    {
    case SDL_QUIT:
       game_is_running = FALSE;
       break;
    case SDL_KEYDOWN:
-      if (event.key.keysym.sym == SDLK_ESCAPE)
+      switch (event.key.keysym.sym)
+      {
+      case SDLK_ESCAPE:
          game_is_running = FALSE;
-      if (event.key.keysym.sym == SDLK_w)
-      {
+         break;
+      case SDLK_w:
          ball.up = 1;
-      };
-      if (event.key.keysym.sym == SDLK_s)
-      {
+         break;
+      case SDLK_s:
          ball.down = 1;
-      };
-      if (event.key.keysym.sym == SDLK_a)
-      {
+         break;
+      case SDLK_a:
          ball.left = 1;
-      };
-      if (event.key.keysym.sym == SDLK_d)
-      {
+         break;
+      case SDLK_d:
          ball.right = 1;
-      };
-      if (event.key.keysym.sym == SDLK_SPACE && ball.dashCd == 0)
-      {
-         ball.dashSpeed = 1000;
-         ball.dashCd = 2;
-      };
+         break;
+      case SDLK_SPACE:
+         if (ball.dashCd == 0)
+         {
+            ball.dashSpeed = 1000;
+            ball.dashCd = 2;
+         }
+         break;
+      case SDLK_x:
+         game_is_pause = TRUE;
+         break;
+      }
       break;
    case SDL_MOUSEBUTTONDOWN:
-      if (event.button.button == SDL_BUTTON_LEFT && bullet.isFired == 0)
+      switch (event.button.button)
       {
-         int x, y;
-         SDL_GetMouseState(&x, &y);
-         bullet.dir = atan2(y - ball.y, x - ball.x);
-         bullet.prevDir = atan2(y - ball.y, x - ball.x);
-         bullet.x = ball.x;
-         bullet.y = ball.y;
-         bullet.isFired = 1;
-         bullet.speedUp = 1000;
-      };
-      if (event.button.button == SDL_BUTTON_LEFT && bullet.isFired == 2)
-      {
-         bullet.isFired = 1;
-         bullet.speedUp = 1000;
+      case SDL_BUTTON_LEFT:
+         if (bullet.isFired == 0)
+         {
+            int x, y;
+            SDL_GetMouseState(&x, &y);
+            bullet.dir = atan2(y - ball.y, x - ball.x);
+            bullet.prevDir = atan2(y - ball.y, x - ball.x);
+            bullet.x = ball.x;
+            bullet.y = ball.y;
+            bullet.isFired = 1;
+            bullet.speedUp = 1000;
+         }
+         else if (bullet.isFired == 2)
+         {
+            if (event.button.button == SDL_BUTTON_LEFT && bullet.isFired == 2)
+            {
+               bullet.isFired = 1;
+               bullet.speedUp = 1000;
+            }
+         }
+         break;
+      case SDL_BUTTON_RIGHT:
+         if (bullet.isFired == 1)
+         {
+            bullet.isFired = 2;
+            bullet.speedUp = 1000;
+            break;
+         }
       }
-      if (event.button.button == SDL_BUTTON_RIGHT && bullet.isFired == 1)
-      {
-         bullet.isFired = 2;
-         bullet.speedUp = 1000;
-      };
       break;
 
    case SDL_KEYUP:
-      if (event.key.keysym.sym == SDLK_w)
+      switch (event.key.keysym.sym)
       {
+      case SDLK_w:
          ball.up = 0;
-      };
-      if (event.key.keysym.sym == SDLK_s)
-      {
+         break;
+      case SDLK_s:
          ball.down = 0;
-      };
-      if (event.key.keysym.sym == SDLK_a)
-      {
+         break;
+      case SDLK_a:
          ball.left = 0;
-      };
-      if (event.key.keysym.sym == SDLK_d)
-      {
+         break;
+      case SDLK_d:
          ball.right = 0;
-      };
+         break;
+         ;
+      }
       break;
    };
 };
 
-void setup()
+void pause_process_input()
+{
+   SDL_Event pause_event;
+   SDL_PollEvent(&pause_event);
+   switch (pause_event.type)
+   {
+   case SDL_QUIT:
+      game_is_running = FALSE;
+      break;
+   case SDL_KEYDOWN:
+      switch (pause_event.key.keysym.sym)
+      {
+      case SDLK_ESCAPE:
+         game_is_running = FALSE;
+         break;
+      case SDLK_x:
+         game_is_pause = FALSE;
+         break;
+      }
+      break;
+   }
+}
+
+void player_setup()
 {
    ball.x = 20;
    ball.y = 20;
@@ -292,15 +346,14 @@ void setup()
    ball.dashCd = 0;
    ball.dashSpeed = 0;
 
-   
-
    bullet.isFired = 0;
    bullet.width = 10;
    bullet.height = 10;
    bullet.speedUp = 0;
+}
 
-   srand(time(NULL));
-
+void enemy_setup()
+{
    spawner.maxSpawnCooldown = 5;
    spawner.currentSpawnCooldown = 1;
    spawner.spawnAmount = 1;
@@ -308,7 +361,9 @@ void setup()
    spawner.maxSpawnAmountIncreaseCooldown = 20;
 
    initEnemyList(&enemyList);
-
+}
+void texture_setup()
+{
    SDL_Color white = {0xFF, 0xFF, 0xFF, 0};
 
    surfaceText = TTF_RenderText_Solid(ourFont, "0", white);
@@ -350,50 +405,67 @@ void setup()
    surfaceText = TTF_RenderText_Solid(ourFont, "9", white);
    number9TextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
    SDL_FreeSurface(surfaceText);
+}
+void setup()
+{
+   player_setup();
+   enemy_setup();
+   texture_setup();
+   srand(time(NULL));
 };
 
-void update()
+int check_collision(SDL_Rect rect1, SDL_Rect rect2)
 {
+   return (rect1.x < rect2.x + rect2.w &&
+           rect1.x + rect1.w > rect2.x &&
+           rect1.y < rect2.y + rect2.h &&
+           rect1.y + rect1.h > rect2.y);
+}
 
-   // while (!SDL_TICKS_PASSED(SDL_GetTicks(), last_frame_time + FRAME_TARGET_TIME));
-
-   last_frame_time = SDL_GetTicks();
 
 
-   int time_to_wait = FRAME_TARGET_TIME - (SDL_GetTicks() - last_frame_time);
+void cap_frame_rate(Uint64 starting_tick)
+{
+    Uint64 target_ticks = starting_tick + SDL_GetPerformanceFrequency() / MAX_FPS;
 
-   if (time_to_wait > 0 && time_to_wait <= FRAME_TARGET_TIME) {
-      SDL_Delay(time_to_wait);
-   }
+    Uint64 current_tick = SDL_GetPerformanceCounter();
+    if (current_tick < target_ticks)
+    {
+        Uint64 delay_ticks = target_ticks - current_tick;
+        Uint32 delay_ms = (delay_ticks * 1000) / SDL_GetPerformanceFrequency();
+        SDL_Delay(delay_ms);
+    }
+}
 
-   // float delta_time = (SDL_GetTicks() - last_frame_time) / 1000.0f;
-
-   static Uint64 last_counter = 0;
+double setup_update()
+{
+    static Uint64 last_counter = 0;
     Uint64 counter = SDL_GetPerformanceCounter();
+
     double delta_time = (double)(counter - last_counter) / SDL_GetPerformanceFrequency();
     last_counter = counter;
 
+    cap_frame_rate(counter);
+
+    return delta_time;
+}
+
+void calculate_fps(double delta_time) {
+    static double accumulated_time = 0.0;
+    static int frames = 0;
+
+    accumulated_time += delta_time;
+    frames++;
+
+    if (accumulated_time >= 1.0) {
+        fps = frames / accumulated_time;
+        accumulated_time = 0.0;
+        frames = 0;
+    }
+}
 
 
-   if (fpsCd > 0)
-   {
-      fpsCd -= delta_time;
-      if (fpsCd < 0)
-      {
-         fpsCd = 0;
-      }
-   }
-   if (fpsCd == 0) {
-      fpsCd = 1;
-      fps = 1.0f / delta_time;
-   }
-
-
-   // for (int i = 0; i < 5000000; ++i) {
-   // }
-
-   SDL_Rect ball_rect = {(int)ball.x, (int)ball.y, (int)ball.width, (int)ball.height};
-
+void enemy_update(SDL_Rect ball_rect, double delta_time) {
    for (int i = 0; i < enemyList.size; i++)
    {
       if (enemyList.enemies[i].eBullet.isFired == 0)
@@ -416,11 +488,12 @@ void update()
       SDL_Rect eBullet_rect = {(int)enemyList.enemies[i].eBullet.bx, (int)enemyList.enemies[i].eBullet.by, 10, 10};
       if (check_collision(ball_rect, eBullet_rect))
       {
-         printf("%d",score);
-         game_is_running = FALSE;
+         // game over
       }
    }
+}
 
+void bullet_update(SDL_Rect ball_rect, double delta_time) {
    if (bullet.isFired == 1 || bullet.isFired == 2)
    {
       float bullet_speed = 400.0f + bullet.speedUp;
@@ -448,8 +521,8 @@ void update()
          SDL_Rect enemy_rect = {(int)enemyList.enemies[i].x, (int)enemyList.enemies[i].y, (int)enemyList.enemies[i].width, (int)enemyList.enemies[i].height};
          if (check_collision(bullet_rect, enemy_rect))
          {
-                removeEnemy(&enemyList, i);
-                score += 1;
+            removeEnemy(&enemyList, i);
+            score += 1;
          }
       }
 
@@ -458,84 +531,44 @@ void update()
          bullet.isFired = 2;
       }
    }
+}
 
-   
-
-   if (spawner.spawnAmountIncreaseCooldown == 0) {
+void update_spawner () {
+   if (spawner.spawnAmountIncreaseCooldown == 0)
+   {
       spawner.spawnAmountIncreaseCooldown = spawner.maxSpawnAmountIncreaseCooldown;
       spawner.spawnAmount += 1;
    }
 
-   if (spawner.spawnAmountIncreaseCooldown > 0)
+   if (spawner.currentSpawnCooldown == 0)
    {
-      spawner.spawnAmountIncreaseCooldown -= delta_time;
-      if (spawner.spawnAmountIncreaseCooldown < 0)
-      {
-         spawner.spawnAmountIncreaseCooldown = 0;
-      }
-   }
-
-   if (spawner.currentSpawnCooldown == 0) {
       spawner.currentSpawnCooldown = spawner.maxSpawnCooldown;
-      for (int i = 0; i < spawner.spawnAmount; ++i) {
-      struct Enemy enemyInstance = {random_float(0, displayMode.w - 15), random_float(0, displayMode.h - 15), 15, 15, 2.0, {0, 0, 10, 10, 0, 0}};
-      addEnemy(&enemyList, enemyInstance);
-      }
-   }
-
-   if (ball.dashCd > 0)
-   {
-      ball.dashCd -= delta_time;
-      if (ball.dashCd < 0)
+      for (int i = 0; i < spawner.spawnAmount; ++i)
       {
-         ball.dashCd = 0;
+         struct Enemy enemyInstance = {random_float(0, displayMode.w - 15), random_float(0, displayMode.h - 15), 15, 15, 2.0, {0, 0, 10, 10, 0, 0}};
+         addEnemy(&enemyList, enemyInstance);
       }
    }
+}
 
-   if (spawner.currentSpawnCooldown > 0)
-   {
-      spawner.currentSpawnCooldown -= delta_time;
-      if (spawner.currentSpawnCooldown < 0)
-      {
-         spawner.currentSpawnCooldown = 0;
-      }
-   }
-
-   if (bullet.speedUp > 0)
-   {
-      bullet.speedUp -= delta_time * 1300;
-      if (bullet.speedUp < 0)
-      {
-         bullet.speedUp = 0;
-      }
-   }
-
-   if (ball.dashSpeed > 0)
-   {
-      ball.dashSpeed -= delta_time * 3000;
-      if (ball.dashSpeed < 0)
-      {
-         ball.dashSpeed = 0;
-      }
-   }
-
-   int multiDer = 200 + ball.dashSpeed;
+void player_movement (double delta_time) {
+   int player_speed = 200 + ball.dashSpeed;
 
    if (ball.up && ball.y > 0)
    {
-      ball.y -= multiDer * delta_time;
+      ball.y -= player_speed * delta_time;
    }
    if (ball.down && ball.y < displayMode.h - ball.height)
    {
-      ball.y += multiDer * delta_time;
+      ball.y += player_speed * delta_time;
    }
    if (ball.left && ball.x > 0)
    {
-      ball.x -= multiDer * delta_time;
+      ball.x -= player_speed * delta_time;
    }
    if (ball.right && ball.x < displayMode.w - ball.width)
    {
-      ball.x += multiDer * delta_time;
+      ball.x += player_speed * delta_time;
    }
 
    if (ball.x < 0)
@@ -554,12 +587,39 @@ void update()
    {
       ball.y = displayMode.h - ball.height;
    }
+}
+
+void cooldown_decrease (double *cd, double delta_time, int multiplier) {
+      if (*cd > 0) {
+         *cd -= delta_time * multiplier;
+         if (*cd < 0) {
+            *cd = 0;
+         }
+      }
+}
+
+
+void update()
+{
+   double delta_time = setup_update();
+
+   calculate_fps(delta_time);
+
+   SDL_Rect ball_rect = {(int)ball.x, (int)ball.y, (int)ball.width, (int)ball.height};
+
+   enemy_update(ball_rect, delta_time);
+   bullet_update(ball_rect, delta_time);
+   update_spawner();
+   player_movement(delta_time);  
+
+   cooldown_decrease(&spawner.currentSpawnCooldown, delta_time, 1);
+   cooldown_decrease(&ball.dashCd, delta_time, 1);
+   cooldown_decrease(&spawner.currentSpawnCooldown, delta_time, 1);
+   cooldown_decrease(&bullet.speedUp, delta_time, 1300);
+   cooldown_decrease(&ball.dashSpeed, delta_time, 3000);
 };
 
-void render()
-{
-   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-   SDL_RenderClear(renderer);
+void render_player() {
 
    SDL_Rect ball_rect = {
        (int)ball.x,
@@ -569,6 +629,19 @@ void render()
    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
    SDL_RenderFillRect(renderer, &ball_rect);
 
+   if (bullet.isFired == 1 || bullet.isFired == 2)
+   {
+      SDL_Rect bullet_rect = {
+          (int)bullet.x,
+          (int)bullet.y,
+          (int)bullet.width,
+          (int)bullet.height};
+      SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
+      SDL_RenderFillRect(renderer, &bullet_rect);
+   }
+}
+
+void render_enemies() {
    for (int i = 0; i < enemyList.size; i++)
    {
       SDL_Rect enemy_rect = {
@@ -587,40 +660,20 @@ void render()
 
       SDL_RenderFillRect(renderer, &enemy_bullet_rect);
    }
+}
 
-   if (bullet.isFired == 1 || bullet.isFired == 2)
-   {
-      SDL_Rect bullet_rect = {
-          (int)bullet.x,
-          (int)bullet.y,
-          (int)bullet.width,
-          (int)bullet.height};
-      SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
-      SDL_RenderFillRect(renderer, &bullet_rect);
+void draw_number(int number, int xpos) {
+   if (number == 0) {
+         SDL_Rect number_rect = {(int)xpos, (int)30, (int)30, (int)30};
+         SDL_RenderCopy(renderer, number0TextureText, NULL, &number_rect);
+         return;
    }
 
-   int dashCd = ceil(ball.dashCd);
-
-   SDL_Rect dashCdBtn_rect = {(displayMode.w - 15) / 2, (int)30, (int)30, (int)30};
-
-   switch (dashCd)
-   {
-   case 0:
-      SDL_RenderCopy(renderer, number0TextureText, NULL, &dashCdBtn_rect);
-      break;
-   case 1:
-      SDL_RenderCopy(renderer, number1TextureText, NULL, &dashCdBtn_rect);
-      break;
-   case 2:
-      SDL_RenderCopy(renderer, number2TextureText, NULL, &dashCdBtn_rect);
-      break;
-   }
-
-   int fpsInt = ceil(fps);
    int digitCount = 0;
-   int temp = fpsInt;
-   int originalTemp = fpsInt;
+   int temp = number;
+   int originalTemp = number;
 
+   // Calculate the number of digits in the given number
    while (temp != 0)
    {
       temp /= 10;
@@ -628,113 +681,88 @@ void render()
    }
 
    temp = originalTemp;
-   int pos = 600;
-
    for (int i = 0; i < digitCount; ++i)
-   {
+   {  
       int digit = temp % 10;
-      SDL_Rect FpsCounter_rect = {(int)pos, (int)30, (int)30, (int)30};
+
+      SDL_Rect number_rect = {(int)xpos, (int)30, (int)30, (int)30};
+
+
+      // Ensure that the rendering position is within the visible range
+
       switch (digit)
       {
       case 0:
-         SDL_RenderCopy(renderer, number0TextureText, NULL, &FpsCounter_rect);
+         SDL_RenderCopy(renderer, number0TextureText, NULL, &number_rect);
          break;
       case 1:
-         SDL_RenderCopy(renderer, number1TextureText, NULL, &FpsCounter_rect);
+         SDL_RenderCopy(renderer, number1TextureText, NULL, &number_rect);
          break;
       case 2:
-         SDL_RenderCopy(renderer, number2TextureText, NULL, &FpsCounter_rect);
+         SDL_RenderCopy(renderer, number2TextureText, NULL, &number_rect);
          break;
       case 3:
-         SDL_RenderCopy(renderer, number3TextureText, NULL, &FpsCounter_rect);
+         SDL_RenderCopy(renderer, number3TextureText, NULL, &number_rect);
          break;
       case 4:
-         SDL_RenderCopy(renderer, number4TextureText, NULL, &FpsCounter_rect);
+         SDL_RenderCopy(renderer, number4TextureText, NULL, &number_rect);
          break;
       case 5:
-         SDL_RenderCopy(renderer, number5TextureText, NULL, &FpsCounter_rect);
+         SDL_RenderCopy(renderer, number5TextureText, NULL, &number_rect);
          break;
       case 6:
-         SDL_RenderCopy(renderer, number6TextureText, NULL, &FpsCounter_rect);
+         SDL_RenderCopy(renderer, number6TextureText, NULL, &number_rect);
          break;
       case 7:
-         SDL_RenderCopy(renderer, number7TextureText, NULL, &FpsCounter_rect);
+         SDL_RenderCopy(renderer, number7TextureText, NULL, &number_rect);
          break;
       case 8:
-         SDL_RenderCopy(renderer, number8TextureText, NULL, &FpsCounter_rect);
+         SDL_RenderCopy(renderer, number8TextureText, NULL, &number_rect);
          break;
       case 9:
-         SDL_RenderCopy(renderer, number9TextureText, NULL, &FpsCounter_rect);
+         SDL_RenderCopy(renderer, number9TextureText, NULL, &number_rect);
          break;
       }
 
-      pos -= 30;
+      // Update the rendering position for the next digit
+      xpos -= 30;
       temp /= 10;
    }
-
-   int digitCount2 = 0;
-   int temp2 = score;
-   int originalTemp2 = score;
-
-   while (temp2 != 0)
-   {
-      temp2 /= 10;
-      ++digitCount2;
-   }
-
-   temp2 = originalTemp2;
-   int pos2 = 100;
-
-   for (int i = 0; i < digitCount2; ++i)
-   {
-      int digit = temp2 % 10;
-      SDL_Rect FpsCounter_rect = {(int)pos2, (int)30, (int)30, (int)30};
-      switch (digit)
-      {
-      case 0:
-         SDL_RenderCopy(renderer, number0TextureText, NULL, &FpsCounter_rect);
-         break;
-      case 1:
-         SDL_RenderCopy(renderer, number1TextureText, NULL, &FpsCounter_rect);
-         break;
-      case 2:
-         SDL_RenderCopy(renderer, number2TextureText, NULL, &FpsCounter_rect);
-         break;
-      case 3:
-         SDL_RenderCopy(renderer, number3TextureText, NULL, &FpsCounter_rect);
-         break;
-      case 4:
-         SDL_RenderCopy(renderer, number4TextureText, NULL, &FpsCounter_rect);
-         break;
-      case 5:
-         SDL_RenderCopy(renderer, number5TextureText, NULL, &FpsCounter_rect);
-         break;
-      case 6:
-         SDL_RenderCopy(renderer, number6TextureText, NULL, &FpsCounter_rect);
-         break;
-      case 7:
-         SDL_RenderCopy(renderer, number7TextureText, NULL, &FpsCounter_rect);
-         break;
-      case 8:
-         SDL_RenderCopy(renderer, number8TextureText, NULL, &FpsCounter_rect);
-         break;
-      case 9:
-         SDL_RenderCopy(renderer, number9TextureText, NULL, &FpsCounter_rect);
-         break;
-      }
-
-      pos2 -= 30;
-      temp2 /= 10;
-   }
+}
 
 
+void render_ui() {
 
+   draw_number(ceil(ball.dashCd), 900);
+   draw_number(ceil(fps), 600);
+   draw_number(score, 300);
+
+}
+
+void render()
+{  
+   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+   SDL_RenderClear(renderer);
+   render_player();
+   render_enemies();
+   render_ui();
    SDL_RenderPresent(renderer);
 };
+
+void pause_render()
+{
+   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 100);
+   SDL_RenderClear(renderer);
+   SDL_RenderPresent(renderer);
+}
 
 void destroy_window()
 {
    cleanupEnemyList(&enemyList);
+
+   // SDL_FreeSurface(image);
+   // SDL_DestroyTexture(ourPNG);
+
    SDL_DestroyTexture(number0TextureText);
    SDL_DestroyTexture(number1TextureText);
    SDL_DestroyTexture(number2TextureText);
@@ -752,7 +780,6 @@ void destroy_window()
    TTF_Quit();
    SDL_Quit();
 }
-
 int main(int argc, char *argv[])
 {
    game_is_running = initialize_window();
@@ -761,9 +788,17 @@ int main(int argc, char *argv[])
 
    while (game_is_running)
    {
-      process_input();
-      update();
-      render();
+      if (game_is_pause)
+      {
+         pause_process_input();
+         render();
+      }
+      else
+      {
+         process_input();
+         update();
+         render();
+      }
    }
 
    destroy_window();

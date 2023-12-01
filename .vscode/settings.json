@@ -1,6 +1,21 @@
 {
     "files.associations": {
         "constants.h": "c",
-        "cmath": "c"
+        "cmath": "c",
+        "bit": "c",
+        "cctype": "c",
+        "compare": "c",
+        "concepts": "c",
+        "cstdarg": "c",
+        "cstdio": "c",
+        "cstdlib": "c",
+        "cwchar": "c",
+        "type_traits": "c",
+        "limits": "c",
+        "new": "c",
+        "*.tcc": "c",
+        "cinttypes": "c",
+        "cstdint": "c",
+        "typeinfo": "c"
     }
 }

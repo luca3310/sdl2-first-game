@@ -17,7 +17,7 @@ $includePath = "C:/Users/jokke/OneDrive/Desktop/vscode/C/sdl2 first game/SDL2/in
 $libPath = "C:/Users/jokke/OneDrive/Desktop/vscode/C/sdl2 first game/SDL2/lib"
 
 # Compile the program
-$compileCommand = "gcc -std=c17 $sourceFile -I'$includePath' -L'$libPath' -Wall -lmingw32 -lSDL2main -lSDL2 -lSDL2_ttf -o $outputFile"
+$compileCommand = "gcc -std=c17 $sourceFile -I'$includePath' -L'$libPath' -Wall -lmingw32 -lSDL2main -lSDL2 -lSDL2_ttf -lSDL2_image -o $outputFile"
 
 # Execute the compile command
 Invoke-Expression $compileCommand
