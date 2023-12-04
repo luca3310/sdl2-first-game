@@ -1,6 +1,9 @@
 #define FALSE 0
 #define TRUE 1
 
-#define MAX_FPS 300
+#define MAX_FPS 400
 #define FRAME_TARGET_TIME (1000 / MAX_FPS)
+
+#define GAME_OVER_MAX_FPS 60
+#define GAME_OVER_FRAME_TARGET_TIME (1000 / GAME_OVER_MAX_FPS)
 

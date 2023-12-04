@@ -11,6 +11,7 @@ int counter = 0;
 int game_is_running = FALSE;
 int game_is_pause = FALSE;
 int game_is_over = FALSE;
+int game_is_menu = TRUE;
 
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
@@ -40,8 +41,19 @@ SDL_Texture *number9TextureText = NULL;
 SDL_Texture *scoreTextureText = NULL;
 SDL_Texture *fpsTextureText = NULL;
 
+SDL_Texture *continueTextureBtn = NULL;
+SDL_Texture *quitTextureBtn = NULL;
+SDL_Texture *tryAgainTextureBtn = NULL;
+SDL_Texture *menuTextureBtn = NULL;
+SDL_Texture *startTextureBtn = NULL;
+
 int last_frame_time = 0;
 int score = 0;
+
+SDL_bool isContinueBtnHovered;
+SDL_bool isQuitBtnHovered;
+SDL_bool isMenuBtnHovered;
+SDL_bool isStartBtnHovered;
 
 struct ball
 {
@@ -73,13 +85,58 @@ struct bullet
 
 struct EnemyBullet
 {
-   float bx;
-   float by;
-   float bWidth;
-   float bHeight;
-   double bDir;
-   int isFired;
+   float x;
+   float y;
+   float width;
+   float height;
+   double Dir;
 };
+
+struct EnemyBulletList
+{
+   struct EnemyBullet * enemyBullets;
+   int size;
+} enemyBulletList;
+
+void initEnemyBulletList(struct EnemyBulletList *list) {
+   list->enemyBullets = NULL;
+   list->size = 0;
+}
+void addEnemyBullet(struct EnemyBulletList *list, struct EnemyBullet newEnemyBullet){
+   list->enemyBullets = realloc(list->enemyBullets, (list->size + 1) * sizeof(struct EnemyBullet));
+   if (list->enemyBullets != NULL) {
+      list->enemyBullets[list->size] = newEnemyBullet;
+      list->size++;
+   } 
+    else
+   {
+      printf("Error: Memory allocation failed at enemyBulletList\n");
+   }
+}
+void removeEnemyBullet(struct EnemyBulletList *list, int index) {
+   if (index >= 0 && index < list->size)
+   {
+      for (int i = index; i < list->size - 1; i++)
+      {
+         list->enemyBullets[i] = list->enemyBullets[i + 1];
+      }
+      list->size--;
+
+      // Resize the allocated memory
+      list->enemyBullets = realloc(list->enemyBullets, list->size * sizeof(struct EnemyBullet));
+   }
+   else
+   {
+      printf("Error: Invalid index at removeEnemyBullet\n");
+   }
+}
+
+void cleanupEnemyBulletList(struct EnemyBulletList *list)
+{
+   free(list->enemyBullets);
+   list->enemyBullets = NULL;
+   list->size = 0;
+}
 
 struct Enemy
 {
@@ -90,7 +147,8 @@ struct Enemy
    float bulletCd;
    double attackImmune;
    int health;
-   struct EnemyBullet eBullet;
+   double attackCd;
+   int maxAttackCd;
 };
 
 struct EnemyList
@@ -115,7 +173,7 @@ void addEnemy(struct EnemyList *list, struct Enemy newEnemy)
    }
    else
    {
-      printf("Error: Memory allocation failed\n");
+      printf("Error: Memory allocation failed at enemyList\n");
    }
 }
 
@@ -135,7 +193,7 @@ void removeEnemy(struct EnemyList *list, int index)
    }
    else
    {
-      printf("Error: Invalid index\n");
+      printf("Error: Invalid index at removeEnemy\n");
    }
 }
 
@@ -237,7 +295,7 @@ void process_input()
       switch (event.key.keysym.sym)
       {
       case SDLK_ESCAPE:
-         game_is_running = FALSE;
+         game_is_pause = TRUE;
          break;
       case SDLK_w:
          ball.up = 1;
@@ -257,9 +315,6 @@ void process_input()
             ball.dashSpeed = 1000;
             ball.dashCd = 2;
          }
-         break;
-      case SDLK_x:
-         game_is_pause = TRUE;
          break;
       }
       break;
@@ -318,27 +373,15 @@ void process_input()
    };
 };
 
-void pause_process_input()
+SDL_bool is_mouse_over_button(int mouseX, int mouseY, int buttonX, int buttonY, int buttonWidth, int buttonHeight)
 {
-   SDL_Event pause_event;
-   SDL_PollEvent(&pause_event);
-   switch (pause_event.type)
-   {
-   case SDL_QUIT:
-      game_is_running = FALSE;
-      break;
-   case SDL_KEYDOWN:
-      switch (pause_event.key.keysym.sym)
-      {
-      case SDLK_ESCAPE:
-         game_is_running = FALSE;
-         break;
-      case SDLK_x:
-         game_is_pause = FALSE;
-         break;
-      }
-      break;
-   }
+   return mouseX >= buttonX && mouseX <= buttonX + buttonWidth &&
+          mouseY >= buttonY && mouseY <= buttonY + buttonHeight;
+}
+
+int collision(int x1, int y1, int width1, int height1, int x2, int y2, int width2, int height2) {
+   return x1 < x2 + width2 && x1 + width1 > x2 &&
+          y1 < y2 + height2 && y1 + height1 > y2;
 }
 
 void player_setup()
@@ -362,6 +405,10 @@ void player_setup()
    bullet.speedUp = 0;
 }
 
+void enemyBullet_setup() {
+   initEnemyBulletList(&enemyBulletList);
+}
+
 void enemy_setup()
 {
    spawner.maxSpawnCooldown = 5;
@@ -372,6 +419,132 @@ void enemy_setup()
 
    initEnemyList(&enemyList);
 }
+
+void restart_setup() {
+   cleanupEnemyBulletList(&enemyBulletList);
+   cleanupEnemyList(&enemyList);
+   score = 0;
+   enemyBullet_setup();
+   player_setup();
+   enemy_setup();
+   srand(time(NULL));
+}
+
+void game_over_process_input() {
+   SDL_Event pause_event;
+   SDL_PollEvent(&pause_event);
+   switch (pause_event.type)
+   {
+   case SDL_QUIT:
+      game_is_running = FALSE;
+      break;
+   case SDL_KEYDOWN:
+      switch (pause_event.key.keysym.sym)
+      {
+      case SDLK_ESCAPE:
+         game_is_pause = FALSE;
+         break;
+      break;
+   }
+   case SDL_MOUSEMOTION:
+      int mouseX, mouseY;
+      SDL_GetMouseState(&mouseX, &mouseY);
+      isContinueBtnHovered = is_mouse_over_button(mouseX, mouseY, displayMode.w / 2 - 150, displayMode.h / 2 - 200, 300, 100);
+      isMenuBtnHovered = is_mouse_over_button(mouseX, mouseY, displayMode.w / 2 - 150, displayMode.h / 2, 300, 100);
+      isQuitBtnHovered = is_mouse_over_button(mouseX, mouseY, displayMode.w / 2 - 150, displayMode.h / 2 + 200, 300, 100);
+      break;
+   case SDL_MOUSEBUTTONDOWN:
+      switch (pause_event.button.button)
+      {
+      case SDL_BUTTON_LEFT:
+         if (isContinueBtnHovered) {
+            restart_setup();
+            game_is_over = FALSE;
+         }
+         if (isMenuBtnHovered) {
+            restart_setup();
+            game_is_over = FALSE;
+            game_is_menu = TRUE;
+         }
+         if (isQuitBtnHovered) {
+            game_is_running = FALSE;
+         }
+      }
+   }
+}
+
+
+void pause_process_input()
+{
+   SDL_Event pause_event;
+   SDL_PollEvent(&pause_event);
+   switch (pause_event.type)
+   {
+   case SDL_QUIT:
+      game_is_running = FALSE;
+      break;
+   case SDL_KEYDOWN:
+      switch (pause_event.key.keysym.sym)
+      {
+      case SDLK_ESCAPE:
+         game_is_pause = FALSE;
+         break;
+      break;
+   }
+   case SDL_MOUSEMOTION:
+      int mouseX, mouseY;
+      SDL_GetMouseState(&mouseX, &mouseY);
+      isContinueBtnHovered = is_mouse_over_button(mouseX, mouseY, displayMode.w / 2 - 150, displayMode.h / 2 - 200, 300, 100);
+      isMenuBtnHovered = is_mouse_over_button(mouseX, mouseY, displayMode.w / 2 - 150, displayMode.h / 2, 300, 100);
+      isQuitBtnHovered = is_mouse_over_button(mouseX, mouseY, displayMode.w / 2 - 150, displayMode.h / 2 + 200, 300, 100);
+      break;
+   case SDL_MOUSEBUTTONDOWN:
+      switch (pause_event.button.button)
+      {
+      case SDL_BUTTON_LEFT:
+         if (isContinueBtnHovered) {
+            game_is_pause = FALSE;
+         }
+         if (isMenuBtnHovered) {
+            restart_setup();
+            game_is_pause = FALSE;
+            game_is_menu = TRUE;
+         }
+         if (isQuitBtnHovered) {
+            game_is_running = FALSE;
+         }
+      }
+   }
+}
+
+void menu_process_input() {
+   SDL_Event pause_event;
+   SDL_PollEvent(&pause_event);
+   switch (pause_event.type)
+   {
+   case SDL_QUIT:
+      game_is_running = FALSE;
+      break;
+   case SDL_MOUSEMOTION:
+      int mouseX, mouseY;
+      SDL_GetMouseState(&mouseX, &mouseY);
+      isStartBtnHovered = is_mouse_over_button(mouseX, mouseY, displayMode.w / 2 - 150, displayMode.h / 2 - 100, 300, 100);
+      isQuitBtnHovered = is_mouse_over_button(mouseX, mouseY, displayMode.w / 2 - 150, displayMode.h / 2 + 100, 300, 100);
+      break;
+   case SDL_MOUSEBUTTONDOWN:
+      switch (pause_event.button.button)
+      {
+      case SDL_BUTTON_LEFT:
+         if (isStartBtnHovered) {
+                  game_is_menu = FALSE;
+         }
+         if (isQuitBtnHovered) {
+            game_is_running = FALSE;
+         }
+      }
+   }
+}
+
 void texture_setup()
 {
    SDL_Color white = {0xFF, 0xFF, 0xFF, 0};
@@ -423,10 +596,31 @@ void texture_setup()
    surfaceText = TTF_RenderText_Solid(ourFont, "Fps: ", white);
    fpsTextureText = SDL_CreateTextureFromSurface(renderer, surfaceText);
    SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "Continue", white);
+   continueTextureBtn = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "Quit", white);
+   quitTextureBtn = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "Try Again", white);
+   tryAgainTextureBtn = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "Menu", white);
+   menuTextureBtn = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
+
+   surfaceText = TTF_RenderText_Solid(ourFont, "Start", white);
+   startTextureBtn = SDL_CreateTextureFromSurface(renderer, surfaceText);
+   SDL_FreeSurface(surfaceText);
 }
 void setup()
 {
    player_setup();
+   enemyBullet_setup();
    enemy_setup();
    texture_setup();
    srand(time(NULL));
@@ -452,9 +646,9 @@ void cooldown_decrease(double *cd, double delta_time, int multiplier)
    }
 }
 
-void cap_frame_rate(Uint64 starting_tick)
+void cap_frame_rate(Uint64 starting_tick, int max_fps)
 {
-   Uint64 target_ticks = starting_tick + SDL_GetPerformanceFrequency() / MAX_FPS;
+   Uint64 target_ticks = starting_tick + SDL_GetPerformanceFrequency() / max_fps;
 
    Uint64 current_tick = SDL_GetPerformanceCounter();
    if (current_tick < target_ticks)
@@ -465,7 +659,7 @@ void cap_frame_rate(Uint64 starting_tick)
    }
 }
 
-double setup_update()
+double setup_update(int max_fps)
 {
    static Uint64 last_counter = 0;
    Uint64 counter = SDL_GetPerformanceCounter();
@@ -473,7 +667,7 @@ double setup_update()
    double delta_time = (double)(counter - last_counter) / SDL_GetPerformanceFrequency();
    last_counter = counter;
 
-   cap_frame_rate(counter);
+   cap_frame_rate(counter, max_fps);
 
    return delta_time;
 }
@@ -494,36 +688,39 @@ void calculate_fps(double delta_time)
    }
 }
 
+void enemyBullet_update(SDL_Rect ball_rect, double delta_time) {
+   for (int i = 0; i < enemyBulletList.size; ++i) {
+      enemyBulletList.enemyBullets[i].x += cos(enemyBulletList.enemyBullets[i].Dir) * 300 * delta_time;
+      enemyBulletList.enemyBullets[i].y += sin(enemyBulletList.enemyBullets[i].Dir) * 300 * delta_time;
+
+      SDL_Rect enemyBullet_rect = {enemyBulletList.enemyBullets[i].x, enemyBulletList.enemyBullets[i].y, enemyBulletList.enemyBullets[i].width, enemyBulletList.enemyBullets[i].height};
+      if (check_collision(ball_rect, enemyBullet_rect) && ball.dashSpeed == 0 && ball.attackImmune == 0) {
+         ball.attackImmune = 2;
+         ball.health -= 1;
+         if (ball.health == 0) {
+            game_is_over = TRUE;
+         }
+      }
+
+      if (enemyBulletList.enemyBullets[i].x < 0 || enemyBulletList.enemyBullets[i].x > displayMode.w || enemyBulletList.enemyBullets[i].y < 0 || enemyBulletList.enemyBullets[i].y > displayMode.h)
+      {
+         removeEnemyBullet(&enemyBulletList, i);     
+      }
+      
+   }
+}
+
 void enemy_update(SDL_Rect ball_rect, double delta_time)
 {
-   for (int i = 0; i < enemyList.size; i++)
+   for (int i = 0; i < enemyList.size; ++i)
    {
       cooldown_decrease(&enemyList.enemies[i].attackImmune, delta_time, 1);
-      if (enemyList.enemies[i].eBullet.isFired == 0)
-      {
+      cooldown_decrease(&enemyList.enemies[i].attackCd, delta_time, 1);
 
-         enemyList.enemies[i].eBullet.isFired = 1;
-         enemyList.enemies[i].eBullet.bx = enemyList.enemies[i].x;
-         enemyList.enemies[i].eBullet.by = enemyList.enemies[i].y;
-         enemyList.enemies[i].eBullet.bDir = atan2(ball.y - enemyList.enemies[i].eBullet.by, ball.x - enemyList.enemies[i].eBullet.bx);
-      }
-      else
-      {
-         enemyList.enemies[i].eBullet.bx += 400.0f * cos(enemyList.enemies[i].eBullet.bDir) * delta_time;
-         enemyList.enemies[i].eBullet.by += 400.0f * sin(enemyList.enemies[i].eBullet.bDir) * delta_time;
-         if (enemyList.enemies[i].eBullet.bx < 0 || enemyList.enemies[i].eBullet.bx > displayMode.w - enemyList.enemies[i].eBullet.bWidth || enemyList.enemies[i].eBullet.by < 0 || enemyList.enemies[i].eBullet.by > displayMode.h - enemyList.enemies[i].eBullet.bHeight)
-         {
-            enemyList.enemies[i].eBullet.isFired = 0;
-         }
-      }
-      SDL_Rect eBullet_rect = {(int)enemyList.enemies[i].eBullet.bx, (int)enemyList.enemies[i].eBullet.by, 10, 10};
-      if (check_collision(ball_rect, eBullet_rect))
-      {
-         if (ball.attackImmune == 0 && ball.dashSpeed == 0)
-         {
-            ball.attackImmune = 2;
-            ball.health -= 1;
-         }
+      if (enemyList.enemies[i].attackCd == 0) {
+         enemyList.enemies[i].attackCd = enemyList.enemies[i].maxAttackCd;
+         struct EnemyBullet enemyBulletInstance = {enemyList.enemies[i].x, enemyList.enemies[i].y, 7, 7, atan2(ball.y - enemyList.enemies[i].y, ball.x - enemyList.enemies[i].x)};
+         addEnemyBullet(&enemyBulletList, enemyBulletInstance);
       }
    }
 }
@@ -581,7 +778,7 @@ void bullet_update(SDL_Rect ball_rect, double delta_time)
 }
 
 void update_spawner()
-{
+{  
    if (spawner.spawnAmountIncreaseCooldown == 0)
    {
       spawner.spawnAmountIncreaseCooldown = spawner.maxSpawnAmountIncreaseCooldown;
@@ -593,11 +790,18 @@ void update_spawner()
       spawner.currentSpawnCooldown = spawner.maxSpawnCooldown;
       for (int i = 0; i < spawner.spawnAmount; ++i)
       {
-         struct Enemy enemyInstance = {random_float(0, displayMode.w - 15), random_float(0, displayMode.h - 15), 15, 15, 2.0, 0, 2, {0, 0, 10, 10, 0, 0}};
+         float spawnX, spawnY;
+
+         do {
+         spawnX = random_float(0, displayMode.w - 15);
+         spawnY = random_float(0, displayMode.h - 15);
+         } while (collision(spawnX, spawnY, 15, 15, ball.x - 350, ball.y - 250, 700, 500));
+         struct Enemy enemyInstance = {spawnX, spawnY, 15, 15, 2.0, 0, 2, 2, 5};
          addEnemy(&enemyList, enemyInstance);
       }
    }
 }
+
 
 void player_movement(double delta_time)
 {
@@ -640,23 +844,39 @@ void player_movement(double delta_time)
 
 void update()
 {
-   double delta_time = setup_update();
+   double delta_time = setup_update(MAX_FPS);
 
    calculate_fps(delta_time);
 
    SDL_Rect ball_rect = {(int)ball.x, (int)ball.y, (int)ball.width, (int)ball.height};
-
+   enemyBullet_update(ball_rect, delta_time);
    enemy_update(ball_rect, delta_time);
    bullet_update(ball_rect, delta_time);
    update_spawner();
    player_movement(delta_time);
 
    cooldown_decrease(&spawner.currentSpawnCooldown, delta_time, 1);
+   cooldown_decrease(&spawner.spawnAmountIncreaseCooldown, delta_time, 1);
    cooldown_decrease(&ball.dashCd, delta_time, 1);
    cooldown_decrease(&bullet.speedUp, delta_time, 1300);
    cooldown_decrease(&ball.dashSpeed, delta_time, 3000);
    cooldown_decrease(&ball.attackImmune, delta_time, 1);
 };
+
+void game_over_update() {
+   double delta_time = setup_update(GAME_OVER_MAX_FPS);
+   calculate_fps(delta_time);
+}
+
+void pause_update() {
+   double delta_time = setup_update(GAME_OVER_MAX_FPS);
+   calculate_fps(delta_time);
+}
+
+void menu_update() {
+   double delta_time = setup_update(GAME_OVER_MAX_FPS);
+   calculate_fps(delta_time);
+}
 
 void render_player()
 {
@@ -688,6 +908,21 @@ void render_player()
    }
 }
 
+void render_enemyBullets() {
+   for (int i = 0; i < enemyBulletList.size; i++)
+   {
+      SDL_Rect enemyBullet_rect = {
+          (int)enemyBulletList.enemyBullets[i].x,
+          (int)enemyBulletList.enemyBullets[i].y,
+          (int)enemyBulletList.enemyBullets[i].width,
+          (int)enemyBulletList.enemyBullets[i].height};
+      
+      
+      SDL_SetRenderDrawColor(renderer, 150, 0, 0, 255);
+      SDL_RenderFillRect(renderer, &enemyBullet_rect);
+   }
+}
+
 void render_enemies()
 {
    for (int i = 0; i < enemyList.size; i++)
@@ -706,14 +941,6 @@ void render_enemies()
          SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
       }
       SDL_RenderFillRect(renderer, &enemy_rect);
-
-      SDL_Rect enemy_bullet_rect = {
-          (int)enemyList.enemies[i].eBullet.bx,
-          (int)enemyList.enemies[i].eBullet.by,
-          (int)enemyList.enemies[i].eBullet.bWidth,
-          (int)enemyList.enemies[i].eBullet.bHeight};
-
-      SDL_RenderFillRect(renderer, &enemy_bullet_rect);
    }
 }
 
@@ -830,7 +1057,10 @@ void render_ui()
 {
    draw_text_with_number(fpsTextureText, ceil(fps), displayMode.w - 200, 30);
    draw_text_with_number(scoreTextureText, score, displayMode.w - 200, 80);
-   draw_number(ceil(ball.dashCd), ball.x - 2.5, ball.y + 40);
+
+   SDL_Rect dashCdBar = {(int)ball.x - 10, (int)ball.y + 40, ball.dashCd * 20, 2};
+   SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+   SDL_RenderFillRect(renderer, &dashCdBar);
    draw_hearths(30, 30, 3, ball.health);
 }
 
@@ -839,29 +1069,31 @@ void render()
    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
    SDL_RenderClear(renderer);
    render_player();
+   render_enemyBullets();
    render_enemies();
    render_ui();
    SDL_RenderPresent(renderer);
 };
 
-void pause_render()
-{
-   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 100);
-   SDL_RenderClear(renderer);
-   SDL_RenderPresent(renderer);
-}
 
-void draw_button(SDL_Texture *textTexture, int height, int width, int xpos, int ypos)
+
+
+void draw_button(SDL_Texture *textTexture, int height, int width, int xpos, int ypos, SDL_bool isHovered)
 {
    SDL_Rect button_rect = {(int)xpos, (int)ypos, (int)width, (int)height};
-   SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+   if (isHovered)
+   {
+      SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
+   }
+   else
+   {
+      SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+   }
    SDL_RenderFillRect(renderer, &button_rect);
 
-   // Get the dimensions of the text texture
    int textWidth, textHeight;
    SDL_QueryTexture(textTexture, NULL, NULL, &textWidth, &textHeight);
 
-   // Calculate the position to center the text within the button
    int textX = xpos + (width - textWidth) / 2;
    int textY = ypos + (height - textHeight) / 2;
 
@@ -870,18 +1102,48 @@ void draw_button(SDL_Texture *textTexture, int height, int width, int xpos, int 
    SDL_RenderCopy(renderer, textTexture, NULL, &text_rect);
 }
 
+void pause_render()
+{
+   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 100);
+   SDL_RenderClear(renderer);
+
+   draw_button(continueTextureBtn, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2 - 200, isContinueBtnHovered);
+   draw_button(menuTextureBtn, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2, isMenuBtnHovered);
+   draw_button(quitTextureBtn, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2 + 200, isQuitBtnHovered);
+
+   draw_text_with_number(fpsTextureText, ceil(fps), displayMode.w - 200, 30);
+
+   SDL_RenderPresent(renderer);
+}
 
 void game_over_render()
 {
    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 100);
    SDL_RenderClear(renderer);
-   draw_button(fpsTextureText, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2 + 100);
-   draw_button(scoreTextureText, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2 - 100);
+
+   draw_button(tryAgainTextureBtn, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2 - 200, isContinueBtnHovered);
+   draw_button(menuTextureBtn, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2, isMenuBtnHovered);
+   draw_button(quitTextureBtn, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2 + 200, isQuitBtnHovered);
+
+   draw_text_with_number(fpsTextureText, ceil(fps), displayMode.w - 200, 30);
+
+   SDL_RenderPresent(renderer);
+}
+
+void menu_render() {
+   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 100);
+   SDL_RenderClear(renderer);
+
+   draw_button(startTextureBtn, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2 - 100, isStartBtnHovered);
+   draw_button(quitTextureBtn, 100, 300, displayMode.w / 2 - 150, displayMode.h / 2 + 100, isQuitBtnHovered);
+
+   draw_text_with_number(fpsTextureText, ceil(fps), displayMode.w - 200, 30);
    SDL_RenderPresent(renderer);
 }
 
 void destroy_window()
 {
+   cleanupEnemyBulletList(&enemyBulletList);
    cleanupEnemyList(&enemyList);
 
    // SDL_FreeSurface(image);
@@ -889,6 +1151,12 @@ void destroy_window()
 
    SDL_DestroyTexture(scoreTextureText);
    SDL_DestroyTexture(fpsTextureText);
+
+   SDL_DestroyTexture(continueTextureBtn);
+   SDL_DestroyTexture(quitTextureBtn);
+   SDL_DestroyTexture(tryAgainTextureBtn);
+   SDL_DestroyTexture(menuTextureBtn);
+   SDL_DestroyTexture(startTextureBtn);
 
    SDL_DestroyTexture(number0TextureText);
    SDL_DestroyTexture(number1TextureText);
@@ -912,13 +1180,28 @@ int main(int argc, char *argv[])
    game_is_running = initialize_window();
 
    setup();
-
+   // main loop
+   // game over screen
+   // pause screen
+   // main menu
+   // options
    while (game_is_running)
-   {
-      if (game_is_over)
+   { 
+      if (game_is_menu) {
+         menu_process_input();
+         menu_update();
+         menu_render();
+      } 
+      else if (game_is_over)  {
+         game_over_process_input();
+         game_over_update();
+         game_over_render();
+      }
+      else if (game_is_pause)
       {
          pause_process_input();
-         game_over_render();
+         pause_update();
+         pause_render();
       }
       else
       {
