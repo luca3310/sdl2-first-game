@@ -49,6 +49,14 @@ SDL_Texture *playerDownSprite = NULL;
 SDL_Texture *playerRightSprite = NULL;
 SDL_Texture *playerLeftSprite = NULL;
 
+SDL_Texture *playerUpGhostSprite = NULL;
+SDL_Texture *playerDownGhostSprite = NULL;
+SDL_Texture *playerRightGhostSprite = NULL;
+SDL_Texture *playerLeftGhostSprite = NULL;
+
+SDL_Texture *bulletSprite = NULL;
+SDL_Texture *bullet2Sprite = NULL;
+
 
 int last_frame_time = 0;
 int score = 0;
@@ -392,8 +400,8 @@ void player_setup()
    ball.attackImmune = 0;
 
    bullet.isFired = 0;
-   bullet.width = 10;
-   bullet.height = 10;
+   bullet.width = 15;
+   bullet.height = 15;
    bullet.speedUp = 0;
 }
 
@@ -404,7 +412,7 @@ void enemyBullet_setup()
 
 void enemy_setup()
 {
-   spawner.maxSpawnCooldown = 5;
+   spawner.maxSpawnCooldown = 7;
    spawner.currentSpawnCooldown = 1;
    spawner.spawnAmount = 1;
    spawner.spawnAmountIncreaseCooldown = 20;
@@ -634,6 +642,30 @@ void texture_setup()
 
    imgSurface = SDL_LoadBMP("./images/playerLeft.bmp");
    playerLeftSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerUpGhost.bmp");
+   playerUpGhostSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerDownGhost.bmp");
+   playerDownGhostSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerLeftGhost.bmp");
+   playerLeftGhostSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerRightGhost.bmp");
+   playerRightGhostSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/bullet.bmp");
+   bulletSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/bullet2.bmp");
+   bullet2Sprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
    SDL_FreeSurface(imgSurface);
 }
 void setup()
@@ -913,8 +945,17 @@ void render_player()
        (int)ball.height};
    if (ball.dashSpeed > 0 || ball.attackImmune > 0)
    {
-       SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-         SDL_RenderFillRect(renderer, &ball_rect); 
+       if (ball.up) {
+         SDL_RenderCopy(renderer, playerUpGhostSprite, NULL, &ball_rect);
+      } else if (ball.down) {
+         SDL_RenderCopy(renderer, playerDownGhostSprite, NULL, &ball_rect);
+      } else if (ball.right) {
+         SDL_RenderCopy(renderer, playerRightGhostSprite, NULL, &ball_rect);
+      } else if (ball.left) {
+         SDL_RenderCopy(renderer, playerLeftGhostSprite, NULL, &ball_rect);
+         } else {
+         SDL_RenderCopy(renderer, playerDownGhostSprite, NULL, &ball_rect);
+      }   
    }
    else
    {
@@ -930,15 +971,21 @@ void render_player()
          SDL_RenderCopy(renderer, playerDownSprite, NULL, &ball_rect);
       }   
    }
-   if (bullet.isFired == 1 || bullet.isFired == 2)
+   if (bullet.isFired == 1)
    {
       SDL_Rect bullet_rect = {
           (int)bullet.x,
           (int)bullet.y,
           (int)bullet.width,
           (int)bullet.height};
-      SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
-      SDL_RenderFillRect(renderer, &bullet_rect);
+      SDL_RenderCopy(renderer, bullet2Sprite, NULL, &bullet_rect);
+   } else if (bullet.isFired == 2){
+      SDL_Rect bullet_rect = {
+          (int)bullet.x,
+          (int)bullet.y,
+          (int)bullet.width,
+          (int)bullet.height};
+      SDL_RenderCopy(renderer, bulletSprite, NULL, &bullet_rect);
    }
 }
 
@@ -1182,6 +1229,11 @@ void destroy_window()
    SDL_DestroyTexture(playerUpSprite);
    SDL_DestroyTexture(playerRightSprite);
    SDL_DestroyTexture(playerLeftSprite);
+
+   SDL_DestroyTexture(playerDownGhostSprite);
+   SDL_DestroyTexture(playerUpGhostSprite);
+   SDL_DestroyTexture(playerRightGhostSprite);
+   SDL_DestroyTexture(playerLeftGhostSprite);
 
 
    SDL_DestroyTexture(scoreTextureText);
