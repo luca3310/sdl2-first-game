@@ -2,7 +2,6 @@
 #include <math.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
-#include <SDL2/SDL_image.h>
 #include "./constants.h"
 #include <time.h>
 
@@ -17,15 +16,13 @@ SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_DisplayMode displayMode;
 
-// SDL_Surface *image;
-// SDL_Texture *ourPNG;
-
 TTF_Font *ourFont;
 SDL_Surface *surfaceText = NULL;
 SDL_Texture *textureText = NULL;
 
+SDL_Surface *imgSurface = NULL;
+
 float fps;
-double fpsCd = 1;
 
 SDL_Texture *number0TextureText = NULL;
 SDL_Texture *number1TextureText = NULL;
@@ -46,6 +43,12 @@ SDL_Texture *quitTextureBtn = NULL;
 SDL_Texture *tryAgainTextureBtn = NULL;
 SDL_Texture *menuTextureBtn = NULL;
 SDL_Texture *startTextureBtn = NULL;
+
+SDL_Texture *playerUpSprite = NULL;
+SDL_Texture *playerDownSprite = NULL;
+SDL_Texture *playerRightSprite = NULL;
+SDL_Texture *playerLeftSprite = NULL;
+
 
 int last_frame_time = 0;
 int score = 0;
@@ -94,26 +97,30 @@ struct EnemyBullet
 
 struct EnemyBulletList
 {
-   struct EnemyBullet * enemyBullets;
+   struct EnemyBullet *enemyBullets;
    int size;
 } enemyBulletList;
 
-void initEnemyBulletList(struct EnemyBulletList *list) {
+void initEnemyBulletList(struct EnemyBulletList *list)
+{
    list->enemyBullets = NULL;
    list->size = 0;
 }
-void addEnemyBullet(struct EnemyBulletList *list, struct EnemyBullet newEnemyBullet){
+void addEnemyBullet(struct EnemyBulletList *list, struct EnemyBullet newEnemyBullet)
+{
    list->enemyBullets = realloc(list->enemyBullets, (list->size + 1) * sizeof(struct EnemyBullet));
-   if (list->enemyBullets != NULL) {
+   if (list->enemyBullets != NULL)
+   {
       list->enemyBullets[list->size] = newEnemyBullet;
       list->size++;
-   } 
-    else
+   }
+   else
    {
       printf("Error: Memory allocation failed at enemyBulletList\n");
    }
 }
-void removeEnemyBullet(struct EnemyBulletList *list, int index) {
+void removeEnemyBullet(struct EnemyBulletList *list, int index)
+{
    if (index >= 0 && index < list->size)
    {
       for (int i = index; i < list->size - 1; i++)
@@ -257,22 +264,6 @@ int initialize_window(void)
          return FALSE;
       }
 
-      // int flags = IMG_INIT_PNG;
-      // int initStatus = IMG_Init(flags);
-
-      // if ((initStatus && flags) != flags)
-      // {
-      //    printf("SDL2_Image format not available");
-      // }
-
-      // image = IMG_Load("./images/mario.png");
-      // if (!image)
-      // {
-      //    printf("Image not loaded...");
-      // }
-
-      // ourPNG = SDL_CreateTextureFromSurface(renderer, image);
-
       return TRUE;
    }
 }
@@ -379,7 +370,8 @@ SDL_bool is_mouse_over_button(int mouseX, int mouseY, int buttonX, int buttonY, 
           mouseY >= buttonY && mouseY <= buttonY + buttonHeight;
 }
 
-int collision(int x1, int y1, int width1, int height1, int x2, int y2, int width2, int height2) {
+int collision(int x1, int y1, int width1, int height1, int x2, int y2, int width2, int height2)
+{
    return x1 < x2 + width2 && x1 + width1 > x2 &&
           y1 < y2 + height2 && y1 + height1 > y2;
 }
@@ -388,8 +380,8 @@ void player_setup()
 {
    ball.x = 20;
    ball.y = 20;
-   ball.width = 15;
-   ball.height = 15;
+   ball.width = 50;
+   ball.height = 60;
    ball.up = 0;
    ball.down = 0;
    ball.left = 0;
@@ -405,7 +397,8 @@ void player_setup()
    bullet.speedUp = 0;
 }
 
-void enemyBullet_setup() {
+void enemyBullet_setup()
+{
    initEnemyBulletList(&enemyBulletList);
 }
 
@@ -420,7 +413,8 @@ void enemy_setup()
    initEnemyList(&enemyList);
 }
 
-void restart_setup() {
+void restart_setup()
+{
    cleanupEnemyBulletList(&enemyBulletList);
    cleanupEnemyList(&enemyList);
    score = 0;
@@ -430,7 +424,8 @@ void restart_setup() {
    srand(time(NULL));
 }
 
-void game_over_process_input() {
+void game_over_process_input()
+{
    SDL_Event pause_event;
    SDL_PollEvent(&pause_event);
    switch (pause_event.type)
@@ -444,8 +439,8 @@ void game_over_process_input() {
       case SDLK_ESCAPE:
          game_is_pause = FALSE;
          break;
-      break;
-   }
+         break;
+      }
    case SDL_MOUSEMOTION:
       int mouseX, mouseY;
       SDL_GetMouseState(&mouseX, &mouseY);
@@ -457,22 +452,24 @@ void game_over_process_input() {
       switch (pause_event.button.button)
       {
       case SDL_BUTTON_LEFT:
-         if (isContinueBtnHovered) {
+         if (isContinueBtnHovered)
+         {
             restart_setup();
             game_is_over = FALSE;
          }
-         if (isMenuBtnHovered) {
+         if (isMenuBtnHovered)
+         {
             restart_setup();
             game_is_over = FALSE;
             game_is_menu = TRUE;
          }
-         if (isQuitBtnHovered) {
+         if (isQuitBtnHovered)
+         {
             game_is_running = FALSE;
          }
       }
    }
 }
-
 
 void pause_process_input()
 {
@@ -489,8 +486,8 @@ void pause_process_input()
       case SDLK_ESCAPE:
          game_is_pause = FALSE;
          break;
-      break;
-   }
+         break;
+      }
    case SDL_MOUSEMOTION:
       int mouseX, mouseY;
       SDL_GetMouseState(&mouseX, &mouseY);
@@ -502,22 +499,26 @@ void pause_process_input()
       switch (pause_event.button.button)
       {
       case SDL_BUTTON_LEFT:
-         if (isContinueBtnHovered) {
+         if (isContinueBtnHovered)
+         {
             game_is_pause = FALSE;
          }
-         if (isMenuBtnHovered) {
+         if (isMenuBtnHovered)
+         {
             restart_setup();
             game_is_pause = FALSE;
             game_is_menu = TRUE;
          }
-         if (isQuitBtnHovered) {
+         if (isQuitBtnHovered)
+         {
             game_is_running = FALSE;
          }
       }
    }
 }
 
-void menu_process_input() {
+void menu_process_input()
+{
    SDL_Event pause_event;
    SDL_PollEvent(&pause_event);
    switch (pause_event.type)
@@ -535,10 +536,12 @@ void menu_process_input() {
       switch (pause_event.button.button)
       {
       case SDL_BUTTON_LEFT:
-         if (isStartBtnHovered) {
-                  game_is_menu = FALSE;
+         if (isStartBtnHovered)
+         {
+            game_is_menu = FALSE;
          }
-         if (isQuitBtnHovered) {
+         if (isQuitBtnHovered)
+         {
             game_is_running = FALSE;
          }
       }
@@ -616,6 +619,22 @@ void texture_setup()
    surfaceText = TTF_RenderText_Solid(ourFont, "Start", white);
    startTextureBtn = SDL_CreateTextureFromSurface(renderer, surfaceText);
    SDL_FreeSurface(surfaceText);
+
+   imgSurface = SDL_LoadBMP("./images/playerDown.bmp");
+   playerDownSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerUp.bmp");
+   playerUpSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerRight.bmp");
+   playerRightSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerLeft.bmp");
+   playerLeftSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
 }
 void setup()
 {
@@ -688,25 +707,28 @@ void calculate_fps(double delta_time)
    }
 }
 
-void enemyBullet_update(SDL_Rect ball_rect, double delta_time) {
-   for (int i = 0; i < enemyBulletList.size; ++i) {
+void enemyBullet_update(SDL_Rect ball_rect, double delta_time)
+{
+   for (int i = 0; i < enemyBulletList.size; ++i)
+   {
       enemyBulletList.enemyBullets[i].x += cos(enemyBulletList.enemyBullets[i].Dir) * 300 * delta_time;
       enemyBulletList.enemyBullets[i].y += sin(enemyBulletList.enemyBullets[i].Dir) * 300 * delta_time;
 
       SDL_Rect enemyBullet_rect = {enemyBulletList.enemyBullets[i].x, enemyBulletList.enemyBullets[i].y, enemyBulletList.enemyBullets[i].width, enemyBulletList.enemyBullets[i].height};
-      if (check_collision(ball_rect, enemyBullet_rect) && ball.dashSpeed == 0 && ball.attackImmune == 0) {
+      if (check_collision(ball_rect, enemyBullet_rect) && ball.dashSpeed == 0 && ball.attackImmune == 0)
+      {
          ball.attackImmune = 2;
          ball.health -= 1;
-         if (ball.health == 0) {
+         if (ball.health == 0)
+         {
             game_is_over = TRUE;
          }
       }
 
       if (enemyBulletList.enemyBullets[i].x < 0 || enemyBulletList.enemyBullets[i].x > displayMode.w || enemyBulletList.enemyBullets[i].y < 0 || enemyBulletList.enemyBullets[i].y > displayMode.h)
       {
-         removeEnemyBullet(&enemyBulletList, i);     
+         removeEnemyBullet(&enemyBulletList, i);
       }
-      
    }
 }
 
@@ -717,7 +739,8 @@ void enemy_update(SDL_Rect ball_rect, double delta_time)
       cooldown_decrease(&enemyList.enemies[i].attackImmune, delta_time, 1);
       cooldown_decrease(&enemyList.enemies[i].attackCd, delta_time, 1);
 
-      if (enemyList.enemies[i].attackCd == 0) {
+      if (enemyList.enemies[i].attackCd == 0)
+      {
          enemyList.enemies[i].attackCd = enemyList.enemies[i].maxAttackCd;
          struct EnemyBullet enemyBulletInstance = {enemyList.enemies[i].x, enemyList.enemies[i].y, 7, 7, atan2(ball.y - enemyList.enemies[i].y, ball.x - enemyList.enemies[i].x)};
          addEnemyBullet(&enemyBulletList, enemyBulletInstance);
@@ -778,7 +801,7 @@ void bullet_update(SDL_Rect ball_rect, double delta_time)
 }
 
 void update_spawner()
-{  
+{
    if (spawner.spawnAmountIncreaseCooldown == 0)
    {
       spawner.spawnAmountIncreaseCooldown = spawner.maxSpawnAmountIncreaseCooldown;
@@ -792,16 +815,16 @@ void update_spawner()
       {
          float spawnX, spawnY;
 
-         do {
-         spawnX = random_float(0, displayMode.w - 15);
-         spawnY = random_float(0, displayMode.h - 15);
+         do
+         {
+            spawnX = random_float(0, displayMode.w - 15);
+            spawnY = random_float(0, displayMode.h - 15);
          } while (collision(spawnX, spawnY, 15, 15, ball.x - 350, ball.y - 250, 700, 500));
          struct Enemy enemyInstance = {spawnX, spawnY, 15, 15, 2.0, 0, 2, 2, 5};
          addEnemy(&enemyList, enemyInstance);
       }
    }
 }
-
 
 void player_movement(double delta_time)
 {
@@ -863,24 +886,26 @@ void update()
    cooldown_decrease(&ball.attackImmune, delta_time, 1);
 };
 
-void game_over_update() {
+void game_over_update()
+{
    double delta_time = setup_update(GAME_OVER_MAX_FPS);
    calculate_fps(delta_time);
 }
 
-void pause_update() {
+void pause_update()
+{
    double delta_time = setup_update(GAME_OVER_MAX_FPS);
    calculate_fps(delta_time);
 }
 
-void menu_update() {
+void menu_update()
+{
    double delta_time = setup_update(GAME_OVER_MAX_FPS);
    calculate_fps(delta_time);
 }
 
 void render_player()
 {
-
    SDL_Rect ball_rect = {
        (int)ball.x,
        (int)ball.y,
@@ -888,14 +913,23 @@ void render_player()
        (int)ball.height};
    if (ball.dashSpeed > 0 || ball.attackImmune > 0)
    {
-      SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+       SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+         SDL_RenderFillRect(renderer, &ball_rect); 
    }
    else
    {
-      SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+      if (ball.up) {
+         SDL_RenderCopy(renderer, playerUpSprite, NULL, &ball_rect);
+      } else if (ball.down) {
+         SDL_RenderCopy(renderer, playerDownSprite, NULL, &ball_rect);
+      } else if (ball.right) {
+         SDL_RenderCopy(renderer, playerRightSprite, NULL, &ball_rect);
+      } else if (ball.left) {
+         SDL_RenderCopy(renderer, playerLeftSprite, NULL, &ball_rect);
+         } else {
+         SDL_RenderCopy(renderer, playerDownSprite, NULL, &ball_rect);
+      }   
    }
-   SDL_RenderFillRect(renderer, &ball_rect);
-
    if (bullet.isFired == 1 || bullet.isFired == 2)
    {
       SDL_Rect bullet_rect = {
@@ -908,7 +942,8 @@ void render_player()
    }
 }
 
-void render_enemyBullets() {
+void render_enemyBullets()
+{
    for (int i = 0; i < enemyBulletList.size; i++)
    {
       SDL_Rect enemyBullet_rect = {
@@ -916,8 +951,7 @@ void render_enemyBullets() {
           (int)enemyBulletList.enemyBullets[i].y,
           (int)enemyBulletList.enemyBullets[i].width,
           (int)enemyBulletList.enemyBullets[i].height};
-      
-      
+
       SDL_SetRenderDrawColor(renderer, 150, 0, 0, 255);
       SDL_RenderFillRect(renderer, &enemyBullet_rect);
    }
@@ -1043,12 +1077,13 @@ void draw_hearths(int xpos, int ypos, int amount, int health)
       if (health > i)
       {
          SDL_SetRenderDrawColor(renderer, 0, 150, 0, 255);
+         SDL_RenderFillRect(renderer, &hearth_rect);
       }
       else
       {
          SDL_SetRenderDrawColor(renderer, 0, 50, 0, 255);
+         SDL_RenderFillRect(renderer, &hearth_rect);
       }
-      SDL_RenderFillRect(renderer, &hearth_rect);
       xpos += 150;
    }
 }
@@ -1057,8 +1092,7 @@ void render_ui()
 {
    draw_text_with_number(fpsTextureText, ceil(fps), displayMode.w - 200, 30);
    draw_text_with_number(scoreTextureText, score, displayMode.w - 200, 80);
-
-   SDL_Rect dashCdBar = {(int)ball.x - 10, (int)ball.y + 40, ball.dashCd * 20, 2};
+   SDL_Rect dashCdBar = {(int)ball.x - 5, (int)ball.y + 70, ball.dashCd * 20, 2};
    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
    SDL_RenderFillRect(renderer, &dashCdBar);
    draw_hearths(30, 30, 3, ball.health);
@@ -1072,11 +1106,9 @@ void render()
    render_enemyBullets();
    render_enemies();
    render_ui();
+
    SDL_RenderPresent(renderer);
 };
-
-
-
 
 void draw_button(SDL_Texture *textTexture, int height, int width, int xpos, int ypos, SDL_bool isHovered)
 {
@@ -1130,7 +1162,8 @@ void game_over_render()
    SDL_RenderPresent(renderer);
 }
 
-void menu_render() {
+void menu_render()
+{
    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 100);
    SDL_RenderClear(renderer);
 
@@ -1140,14 +1173,16 @@ void menu_render() {
    draw_text_with_number(fpsTextureText, ceil(fps), displayMode.w - 200, 30);
    SDL_RenderPresent(renderer);
 }
-
 void destroy_window()
 {
    cleanupEnemyBulletList(&enemyBulletList);
    cleanupEnemyList(&enemyList);
 
-   // SDL_FreeSurface(image);
-   // SDL_DestroyTexture(ourPNG);
+   SDL_DestroyTexture(playerDownSprite);
+   SDL_DestroyTexture(playerUpSprite);
+   SDL_DestroyTexture(playerRightSprite);
+   SDL_DestroyTexture(playerLeftSprite);
+
 
    SDL_DestroyTexture(scoreTextureText);
    SDL_DestroyTexture(fpsTextureText);
@@ -1186,13 +1221,15 @@ int main(int argc, char *argv[])
    // main menu
    // options
    while (game_is_running)
-   { 
-      if (game_is_menu) {
+   {
+      if (game_is_menu)
+      {
          menu_process_input();
          menu_update();
          menu_render();
-      } 
-      else if (game_is_over)  {
+      }
+      else if (game_is_over)
+      {
          game_over_process_input();
          game_over_update();
          game_over_render();
