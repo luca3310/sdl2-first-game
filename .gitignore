@@ -1,6 +1,5 @@
 SDL2/
 fonts/
-images/
 /main.exe
 /SDL2.dll
 /SDL2_ttf.dll
