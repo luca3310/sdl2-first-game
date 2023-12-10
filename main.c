@@ -415,8 +415,8 @@ void enemy_setup()
    spawner.maxSpawnCooldown = 7;
    spawner.currentSpawnCooldown = 1;
    spawner.spawnAmount = 1;
-   spawner.spawnAmountIncreaseCooldown = 20;
-   spawner.maxSpawnAmountIncreaseCooldown = 20;
+   spawner.spawnAmountIncreaseCooldown = 200;
+   spawner.maxSpawnAmountIncreaseCooldown = 200;
 
    initEnemyList(&enemyList);
 }
