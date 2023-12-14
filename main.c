@@ -45,9 +45,21 @@ SDL_Texture *menuTextureBtn = NULL;
 SDL_Texture *startTextureBtn = NULL;
 
 SDL_Texture *playerUpSprite = NULL;
+SDL_Texture *playerUpSprite2 = NULL;
+SDL_Texture *playerUpSprite3 = NULL;
+
+
 SDL_Texture *playerDownSprite = NULL;
+SDL_Texture *playerDownSprite2 = NULL;
+SDL_Texture *playerDownSprite3 = NULL;
+
 SDL_Texture *playerRightSprite = NULL;
+SDL_Texture *playerRightSprite2 = NULL;
+SDL_Texture *playerRightSprite3 = NULL;
+
 SDL_Texture *playerLeftSprite = NULL;
+SDL_Texture *playerLeftSprite2 = NULL;
+SDL_Texture *playerLeftSprite3 = NULL;
 
 SDL_Texture *playerUpGhostSprite = NULL;
 SDL_Texture *playerDownGhostSprite = NULL;
@@ -56,7 +68,6 @@ SDL_Texture *playerLeftGhostSprite = NULL;
 
 SDL_Texture *bulletSprite = NULL;
 SDL_Texture *bullet2Sprite = NULL;
-
 
 int last_frame_time = 0;
 int score = 0;
@@ -80,7 +91,16 @@ struct ball
    double dashSpeed;
    double attackImmune;
    int health;
+   double animationFrame;   
 } ball;
+
+struct orb
+{
+   float x;
+   float y;
+   float angle;
+   float distance;
+} orb;
 
 struct bullet
 {
@@ -398,11 +418,15 @@ void player_setup()
    ball.dashSpeed = 0;
    ball.health = 3;
    ball.attackImmune = 0;
+   ball.animationFrame = 3;
 
    bullet.isFired = 0;
    bullet.width = 15;
    bullet.height = 15;
    bullet.speedUp = 0;
+
+   orb.angle = 0;
+   orb.distance = 70;
 }
 
 void enemyBullet_setup()
@@ -632,16 +656,48 @@ void texture_setup()
    playerDownSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
    SDL_FreeSurface(imgSurface);
 
+   imgSurface = SDL_LoadBMP("./images/playerDown2.bmp");
+   playerDownSprite2 = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerDown3.bmp");
+   playerDownSprite3 = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
    imgSurface = SDL_LoadBMP("./images/playerUp.bmp");
    playerUpSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerUp2.bmp");
+   playerUpSprite2 = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerUp3.bmp");
+   playerUpSprite3 = SDL_CreateTextureFromSurface(renderer, imgSurface);
    SDL_FreeSurface(imgSurface);
 
    imgSurface = SDL_LoadBMP("./images/playerRight.bmp");
    playerRightSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
    SDL_FreeSurface(imgSurface);
 
+   imgSurface = SDL_LoadBMP("./images/playerRight2.bmp");
+   playerRightSprite2 = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerRight3.bmp");
+   playerRightSprite3 = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
    imgSurface = SDL_LoadBMP("./images/playerLeft.bmp");
    playerLeftSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerLeft2.bmp");
+   playerLeftSprite2 = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/playerLeft3.bmp");
+   playerLeftSprite3 = SDL_CreateTextureFromSurface(renderer, imgSurface);
    SDL_FreeSurface(imgSurface);
 
    imgSurface = SDL_LoadBMP("./images/playerUpGhost.bmp");
@@ -916,6 +972,21 @@ void update()
    cooldown_decrease(&bullet.speedUp, delta_time, 1300);
    cooldown_decrease(&ball.dashSpeed, delta_time, 3000);
    cooldown_decrease(&ball.attackImmune, delta_time, 1);
+
+   cooldown_decrease(&ball.animationFrame, delta_time, 3);
+
+   if (ceil(ball.animationFrame) == 0)
+   {
+      ball.animationFrame = 3;
+   }
+
+   // orb.x = (ball.x + 25 + random_float(-10, 10)) + orb.distance * cos(orb.angle);
+   // orb.y = (ball.y + 30 + random_float(-10, 10)) + orb.distance * sin(orb.angle);
+
+   orb.x = (ball.x + 25) + orb.distance * cos(orb.angle);
+   orb.y = (ball.y + 30) + orb.distance * sin(orb.angle);
+
+   orb.angle += 5 * delta_time;
 };
 
 void game_over_update()
@@ -945,31 +1016,93 @@ void render_player()
        (int)ball.height};
    if (ball.dashSpeed > 0 || ball.attackImmune > 0)
    {
-       if (ball.up) {
+      if (ball.up)
+      {
          SDL_RenderCopy(renderer, playerUpGhostSprite, NULL, &ball_rect);
-      } else if (ball.down) {
+      }
+      else if (ball.down)
+      {
          SDL_RenderCopy(renderer, playerDownGhostSprite, NULL, &ball_rect);
-      } else if (ball.right) {
+      }
+      else if (ball.right)
+      {
          SDL_RenderCopy(renderer, playerRightGhostSprite, NULL, &ball_rect);
-      } else if (ball.left) {
+      }
+      else if (ball.left)
+      {
          SDL_RenderCopy(renderer, playerLeftGhostSprite, NULL, &ball_rect);
-         } else {
+      }
+      else
+      {
          SDL_RenderCopy(renderer, playerDownGhostSprite, NULL, &ball_rect);
-      }   
+      }
    }
    else
    {
-      if (ball.up) {
-         SDL_RenderCopy(renderer, playerUpSprite, NULL, &ball_rect);
-      } else if (ball.down) {
+      if (ball.up)
+      {
+         if (ceil(ball.animationFrame) == 3)
+         {
+            SDL_RenderCopy(renderer, playerUpSprite2, NULL, &ball_rect);
+         }
+         else if (ceil(ball.animationFrame) == 2)
+         {
+            SDL_RenderCopy(renderer, playerUpSprite, NULL, &ball_rect);
+         }
+         else
+         {
+            SDL_RenderCopy(renderer, playerUpSprite3, NULL, &ball_rect);
+         }
+      }
+      else if (ball.down)
+      {
+         if (ceil(ball.animationFrame) == 3)
+         {
+            SDL_RenderCopy(renderer, playerDownSprite2, NULL, &ball_rect);
+         }
+         else if (ceil(ball.animationFrame) == 2)
+         {
+            SDL_RenderCopy(renderer, playerDownSprite, NULL, &ball_rect);
+         }
+         else
+         {
+            SDL_RenderCopy(renderer, playerDownSprite3, NULL, &ball_rect);
+         }
+      }
+      else if (ball.right)
+      {
+         if (ceil(ball.animationFrame) == 3)
+         {
+            SDL_RenderCopy(renderer, playerRightSprite2, NULL, &ball_rect);
+         }
+         else if (ceil(ball.animationFrame) == 2)
+         {
+            SDL_RenderCopy(renderer, playerRightSprite, NULL, &ball_rect);
+         }
+         else
+         {
+            SDL_RenderCopy(renderer, playerRightSprite3, NULL, &ball_rect);
+         }
+      }
+      else if (ball.left)
+      {
+         if (ceil(ball.animationFrame) == 3)
+         {
+            SDL_RenderCopy(renderer, playerLeftSprite2, NULL, &ball_rect);
+         }
+         else if (ceil(ball.animationFrame) == 2)
+         {
+            SDL_RenderCopy(renderer, playerLeftSprite, NULL, &ball_rect);
+         }
+         else
+         {
+            SDL_RenderCopy(renderer, playerLeftSprite3, NULL, &ball_rect);
+         }
+      }
+      else
+      {
          SDL_RenderCopy(renderer, playerDownSprite, NULL, &ball_rect);
-      } else if (ball.right) {
-         SDL_RenderCopy(renderer, playerRightSprite, NULL, &ball_rect);
-      } else if (ball.left) {
-         SDL_RenderCopy(renderer, playerLeftSprite, NULL, &ball_rect);
-         } else {
-         SDL_RenderCopy(renderer, playerDownSprite, NULL, &ball_rect);
-      }   
+      }
    }
    if (bullet.isFired == 1)
    {
@@ -979,10 +1112,22 @@ void render_player()
           (int)bullet.width,
           (int)bullet.height};
       SDL_RenderCopy(renderer, bullet2Sprite, NULL, &bullet_rect);
-   } else if (bullet.isFired == 2){
+   }
+   else if (bullet.isFired == 2)
+   {
       SDL_Rect bullet_rect = {
           (int)bullet.x,
           (int)bullet.y,
+          (int)bullet.width,
+          (int)bullet.height};
+      SDL_RenderCopy(renderer, bulletSprite, NULL, &bullet_rect);
+   }
+   else
+   {
+
+      SDL_Rect bullet_rect = {
+          (int)orb.x,
+          (int)orb.y,
           (int)bullet.width,
           (int)bullet.height};
       SDL_RenderCopy(renderer, bulletSprite, NULL, &bullet_rect);
@@ -1226,15 +1371,25 @@ void destroy_window()
    cleanupEnemyList(&enemyList);
 
    SDL_DestroyTexture(playerDownSprite);
+   SDL_DestroyTexture(playerDownSprite2);
+   SDL_DestroyTexture(playerDownSprite3);
+
    SDL_DestroyTexture(playerUpSprite);
+   SDL_DestroyTexture(playerUpSprite2);
+   SDL_DestroyTexture(playerUpSprite3);
+
    SDL_DestroyTexture(playerRightSprite);
+   SDL_DestroyTexture(playerRightSprite2);
+   SDL_DestroyTexture(playerRightSprite3);
+
    SDL_DestroyTexture(playerLeftSprite);
+   SDL_DestroyTexture(playerLeftSprite2);
+   SDL_DestroyTexture(playerLeftSprite3);
 
    SDL_DestroyTexture(playerDownGhostSprite);
    SDL_DestroyTexture(playerUpGhostSprite);
    SDL_DestroyTexture(playerRightGhostSprite);
    SDL_DestroyTexture(playerLeftGhostSprite);
-
 
    SDL_DestroyTexture(scoreTextureText);
    SDL_DestroyTexture(fpsTextureText);
