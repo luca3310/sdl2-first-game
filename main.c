@@ -48,7 +48,6 @@ SDL_Texture *playerUpSprite = NULL;
 SDL_Texture *playerUpSprite2 = NULL;
 SDL_Texture *playerUpSprite3 = NULL;
 
-
 SDL_Texture *playerDownSprite = NULL;
 SDL_Texture *playerDownSprite2 = NULL;
 SDL_Texture *playerDownSprite3 = NULL;
@@ -66,6 +65,14 @@ SDL_Texture *playerDownGhostSprite = NULL;
 SDL_Texture *playerRightGhostSprite = NULL;
 SDL_Texture *playerLeftGhostSprite = NULL;
 
+SDL_Texture *turretBottomSprite = NULL;
+SDL_Texture *turretTopSprite = NULL;
+
+SDL_Texture *turretBottomHitSprite = NULL;
+SDL_Texture *turretTopHitSprite = NULL;
+
+SDL_Texture *turretBullet = NULL;
+
 SDL_Texture *bulletSprite = NULL;
 SDL_Texture *bullet2Sprite = NULL;
 
@@ -77,7 +84,7 @@ SDL_bool isQuitBtnHovered;
 SDL_bool isMenuBtnHovered;
 SDL_bool isStartBtnHovered;
 
-struct ball
+struct player
 {
    float x;
    float y;
@@ -87,12 +94,22 @@ struct ball
    int up;
    int down;
    int right;
+   char *playerDir;
    double dashCd;
    double dashSpeed;
    double attackImmune;
    int health;
-   double animationFrame;   
-} ball;
+   double animationFrame;
+   double dashGhostCd;
+   float dashGhost1X;
+   float dashGhost1y;
+   char *dashGhost1Dir;
+   int dashGhost1Active;
+   float dashGhost2X;
+   float dashGhost2y;
+   char *dashGhost2Dir;
+   int dashGhost2Active;
+} player;
 
 struct orb
 {
@@ -184,6 +201,7 @@ struct Enemy
    int health;
    double attackCd;
    int maxAttackCd;
+   double dir;
 };
 
 struct EnemyList
@@ -317,22 +335,23 @@ void process_input()
          game_is_pause = TRUE;
          break;
       case SDLK_w:
-         ball.up = 1;
+         player.up = 1;
          break;
       case SDLK_s:
-         ball.down = 1;
+         player.down = 1;
          break;
       case SDLK_a:
-         ball.left = 1;
+         player.left = 1;
          break;
       case SDLK_d:
-         ball.right = 1;
+         player.right = 1;
          break;
       case SDLK_SPACE:
-         if (ball.dashCd == 0)
+         if (player.dashCd == 0)
          {
-            ball.dashSpeed = 1000;
-            ball.dashCd = 2;
+            player.dashSpeed = 1000;
+            player.dashCd = 2;
+            player.dashGhostCd = 20;
          }
          break;
       }
@@ -345,10 +364,10 @@ void process_input()
          {
             int x, y;
             SDL_GetMouseState(&x, &y);
-            bullet.dir = atan2(y - ball.y, x - ball.x);
-            bullet.prevDir = atan2(y - ball.y, x - ball.x);
-            bullet.x = ball.x;
-            bullet.y = ball.y;
+            bullet.dir = atan2(y - player.y, x - player.x);
+            bullet.prevDir = atan2(y - player.y, x - player.x);
+            bullet.x = player.x;
+            bullet.y = player.y;
             bullet.isFired = 1;
             bullet.speedUp = 1000;
          }
@@ -375,16 +394,16 @@ void process_input()
       switch (event.key.keysym.sym)
       {
       case SDLK_w:
-         ball.up = 0;
+         player.up = 0;
          break;
       case SDLK_s:
-         ball.down = 0;
+         player.down = 0;
          break;
       case SDLK_a:
-         ball.left = 0;
+         player.left = 0;
          break;
       case SDLK_d:
-         ball.right = 0;
+         player.right = 0;
          break;
          ;
       }
@@ -406,27 +425,31 @@ int collision(int x1, int y1, int width1, int height1, int x2, int y2, int width
 
 void player_setup()
 {
-   ball.x = 20;
-   ball.y = 20;
-   ball.width = 50;
-   ball.height = 60;
-   ball.up = 0;
-   ball.down = 0;
-   ball.left = 0;
-   ball.right = 0;
-   ball.dashCd = 0;
-   ball.dashSpeed = 0;
-   ball.health = 3;
-   ball.attackImmune = 0;
-   ball.animationFrame = 3;
+   player.x = 20;
+   player.y = 20;
+   player.width = 50;
+   player.height = 60;
+   player.up = 0;
+   player.down = 0;
+   player.left = 0;
+   player.right = 0;
+   player.dashCd = 0;
+   player.dashSpeed = 0;
+   player.health = 3;
+   player.attackImmune = 0;
+   player.animationFrame = 3;
 
    bullet.isFired = 0;
-   bullet.width = 15;
-   bullet.height = 15;
+   bullet.width = 25;
+   bullet.height = 25;
    bullet.speedUp = 0;
 
    orb.angle = 0;
    orb.distance = 70;
+
+   player.dashGhostCd = 0;
+   player.dashGhost2Active = 0;
+   player.dashGhost2Active = 0;
 }
 
 void enemyBullet_setup()
@@ -723,6 +746,26 @@ void texture_setup()
    imgSurface = SDL_LoadBMP("./images/bullet2.bmp");
    bullet2Sprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
    SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/turretBottom.bmp");
+   turretBottomSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/turretTop.bmp");
+   turretTopSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/turretBottomHit.bmp");
+   turretBottomHitSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/turretTopHit.bmp");
+   turretTopHitSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/turretBullet.bmp");
+   turretBullet = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
 }
 void setup()
 {
@@ -795,7 +838,7 @@ void calculate_fps(double delta_time)
    }
 }
 
-void enemyBullet_update(SDL_Rect ball_rect, double delta_time)
+void enemyBullet_update(SDL_Rect player_rect, double delta_time)
 {
    for (int i = 0; i < enemyBulletList.size; ++i)
    {
@@ -803,11 +846,11 @@ void enemyBullet_update(SDL_Rect ball_rect, double delta_time)
       enemyBulletList.enemyBullets[i].y += sin(enemyBulletList.enemyBullets[i].Dir) * 300 * delta_time;
 
       SDL_Rect enemyBullet_rect = {enemyBulletList.enemyBullets[i].x, enemyBulletList.enemyBullets[i].y, enemyBulletList.enemyBullets[i].width, enemyBulletList.enemyBullets[i].height};
-      if (check_collision(ball_rect, enemyBullet_rect) && ball.dashSpeed == 0 && ball.attackImmune == 0)
+      if (check_collision(player_rect, enemyBullet_rect) && player.dashSpeed == 0 && player.attackImmune == 0)
       {
-         ball.attackImmune = 2;
-         ball.health -= 1;
-         if (ball.health == 0)
+         player.attackImmune = 2;
+         player.health -= 1;
+         if (player.health == 0)
          {
             game_is_over = TRUE;
          }
@@ -820,23 +863,25 @@ void enemyBullet_update(SDL_Rect ball_rect, double delta_time)
    }
 }
 
-void enemy_update(SDL_Rect ball_rect, double delta_time)
+void enemy_update(SDL_Rect player_rect, double delta_time)
 {
    for (int i = 0; i < enemyList.size; ++i)
    {
       cooldown_decrease(&enemyList.enemies[i].attackImmune, delta_time, 1);
       cooldown_decrease(&enemyList.enemies[i].attackCd, delta_time, 1);
+      enemyList.enemies[i].dir = atan2(player.y - enemyList.enemies[i].y, player.x - enemyList.enemies[i].x) * 180.0 / M_PI;
+      
 
       if (enemyList.enemies[i].attackCd == 0)
       {
          enemyList.enemies[i].attackCd = enemyList.enemies[i].maxAttackCd;
-         struct EnemyBullet enemyBulletInstance = {enemyList.enemies[i].x, enemyList.enemies[i].y, 7, 7, atan2(ball.y - enemyList.enemies[i].y, ball.x - enemyList.enemies[i].x)};
+         struct EnemyBullet enemyBulletInstance = {enemyList.enemies[i].x + 15, enemyList.enemies[i].y + 15, 20, 20, atan2(player.y - enemyList.enemies[i].y, player.x - enemyList.enemies[i].x)};
          addEnemyBullet(&enemyBulletList, enemyBulletInstance);
       }
    }
 }
 
-void bullet_update(SDL_Rect ball_rect, double delta_time)
+void bullet_update(SDL_Rect player_rect, double delta_time)
 {
    if (bullet.isFired == 1 || bullet.isFired == 2)
    {
@@ -846,8 +891,8 @@ void bullet_update(SDL_Rect ball_rect, double delta_time)
       if (bullet.isFired == 2)
       {
          bullet_speed = 700.0f + bullet.speedUp;
-         bullet.dir = atan2(ball.y - bullet.y, ball.x - bullet.x);
-         if (check_collision(bullet_rect, ball_rect))
+         bullet.dir = atan2(player.y - bullet.y, player.x - bullet.x);
+         if (check_collision(bullet_rect, player_rect))
          {
             bullet.isFired = 0;
          }
@@ -907,8 +952,8 @@ void update_spawner()
          {
             spawnX = random_float(0, displayMode.w - 15);
             spawnY = random_float(0, displayMode.h - 15);
-         } while (collision(spawnX, spawnY, 15, 15, ball.x - 350, ball.y - 250, 700, 500));
-         struct Enemy enemyInstance = {spawnX, spawnY, 15, 15, 2.0, 0, 2, 2, 5};
+         } while (collision(spawnX, spawnY, 15, 15, player.x - 350, player.y - 250, 700, 500));
+         struct Enemy enemyInstance = {spawnX, spawnY, 60, 60, 2.0, 0, 2, 2, 5};
          addEnemy(&enemyList, enemyInstance);
       }
    }
@@ -916,40 +961,40 @@ void update_spawner()
 
 void player_movement(double delta_time)
 {
-   int player_speed = 200 + ball.dashSpeed;
+   int player_speed = 200 + player.dashSpeed;
 
-   if (ball.up && ball.y > 0)
+   if (player.up && player.y > 0)
    {
-      ball.y -= player_speed * delta_time;
+      player.y -= player_speed * delta_time;
    }
-   if (ball.down && ball.y < displayMode.h - ball.height)
+   if (player.down && player.y < displayMode.h - player.height)
    {
-      ball.y += player_speed * delta_time;
+      player.y += player_speed * delta_time;
    }
-   if (ball.left && ball.x > 0)
+   if (player.left && player.x > 0)
    {
-      ball.x -= player_speed * delta_time;
+      player.x -= player_speed * delta_time;
    }
-   if (ball.right && ball.x < displayMode.w - ball.width)
+   if (player.right && player.x < displayMode.w - player.width)
    {
-      ball.x += player_speed * delta_time;
+      player.x += player_speed * delta_time;
    }
 
-   if (ball.x < 0)
+   if (player.x < 0)
    {
-      ball.x = 0;
+      player.x = 0;
    }
-   if (ball.x > displayMode.w - ball.width)
+   if (player.x > displayMode.w - player.width)
    {
-      ball.x = displayMode.w - ball.width;
+      player.x = displayMode.w - player.width;
    }
-   if (ball.y < 0)
+   if (player.y < 0)
    {
-      ball.y = 0;
+      player.y = 0;
    }
-   if (ball.y > displayMode.h - ball.height)
+   if (player.y > displayMode.h - player.height)
    {
-      ball.y = displayMode.h - ball.height;
+      player.y = displayMode.h - player.height;
    }
 }
 
@@ -959,34 +1004,92 @@ void update()
 
    calculate_fps(delta_time);
 
-   SDL_Rect ball_rect = {(int)ball.x, (int)ball.y, (int)ball.width, (int)ball.height};
-   enemyBullet_update(ball_rect, delta_time);
-   enemy_update(ball_rect, delta_time);
-   bullet_update(ball_rect, delta_time);
+   SDL_Rect player_rect = {(int)player.x, (int)player.y, (int)player.width, (int)player.height};
+   enemyBullet_update(player_rect, delta_time);
+   enemy_update(player_rect, delta_time);
+   bullet_update(player_rect, delta_time);
    update_spawner();
    player_movement(delta_time);
 
    cooldown_decrease(&spawner.currentSpawnCooldown, delta_time, 1);
    cooldown_decrease(&spawner.spawnAmountIncreaseCooldown, delta_time, 1);
-   cooldown_decrease(&ball.dashCd, delta_time, 1);
+   cooldown_decrease(&player.dashCd, delta_time, 1);
    cooldown_decrease(&bullet.speedUp, delta_time, 1300);
-   cooldown_decrease(&ball.dashSpeed, delta_time, 3000);
-   cooldown_decrease(&ball.attackImmune, delta_time, 1);
+   cooldown_decrease(&player.dashSpeed, delta_time, 3000);
+   cooldown_decrease(&player.attackImmune, delta_time, 1);
 
-   cooldown_decrease(&ball.animationFrame, delta_time, 3);
+   cooldown_decrease(&player.animationFrame, delta_time, 3);
 
-   if (ceil(ball.animationFrame) == 0)
+   if (ceil(player.animationFrame) == 0)
    {
-      ball.animationFrame = 3;
+      player.animationFrame = 3;
    }
 
-   // orb.x = (ball.x + 25 + random_float(-10, 10)) + orb.distance * cos(orb.angle);
-   // orb.y = (ball.y + 30 + random_float(-10, 10)) + orb.distance * sin(orb.angle);
+   // orb.x = (player.x + 25 + random_float(-10, 10)) + orb.distance * cos(orb.angle);
+   // orb.y = (player.y + 30 + random_float(-10, 10)) + orb.distance * sin(orb.angle);
 
-   orb.x = (ball.x + 25) + orb.distance * cos(orb.angle);
-   orb.y = (ball.y + 30) + orb.distance * sin(orb.angle);
+   orb.x = (player.x + 25) + orb.distance * cos(orb.angle);
+   orb.y = (player.y + 30) + orb.distance * sin(orb.angle);
 
    orb.angle += 5 * delta_time;
+
+   if (ceil(player.dashGhostCd) == 20 && !player.dashGhost1Active)
+   {
+      player.dashGhost1X = player.x;
+      player.dashGhost1y = player.y;
+      player.dashGhost1Active = 1;
+
+      if (player.up)
+      {
+         player.dashGhost1Dir = "u";
+      }
+      else if (player.down)
+      {
+         player.dashGhost1Dir = "d";
+      }
+      else if (player.left)
+      {
+         player.dashGhost1Dir = "l";
+      }
+      else if (player.right)
+      {
+         player.dashGhost1Dir = "r";
+      }
+   }
+   if (ceil(player.dashGhostCd) == 10 && player.dashGhost1Active)
+   {
+      player.dashGhost1Active = 0;
+   }
+
+   if (ceil(player.dashGhostCd) == 18 && !player.dashGhost2Active)
+   {
+      player.dashGhost2X = player.x;
+      player.dashGhost2y = player.y;
+      player.dashGhost2Active = 1;
+      if (player.up)
+      {
+         player.dashGhost2Dir = "u";
+      }
+      else if (player.down)
+      {
+         player.dashGhost2Dir = "d";
+      }
+      else if (player.left)
+      {
+         player.dashGhost2Dir = "l";
+      }
+      else if (player.right)
+      {
+         player.dashGhost2Dir = "r";
+      }
+   }
+
+   if (ceil(player.dashGhostCd) == 1 && player.dashGhost2Active)
+   {
+      player.dashGhost2Active = 0;
+   }
+
+   cooldown_decrease(&player.dashGhostCd, delta_time, 16);
 };
 
 void game_over_update()
@@ -1009,99 +1112,150 @@ void menu_update()
 
 void render_player()
 {
-   SDL_Rect ball_rect = {
-       (int)ball.x,
-       (int)ball.y,
-       (int)ball.width,
-       (int)ball.height};
-   if (ball.dashSpeed > 0 || ball.attackImmune > 0)
+   SDL_Rect player_rect = {
+       (int)player.x,
+       (int)player.y,
+       (int)player.width,
+       (int)player.height};
+   if (player.dashSpeed > 0 || player.attackImmune > 0)
    {
-      if (ball.up)
+
+      if (player.dashGhost1Active)
       {
-         SDL_RenderCopy(renderer, playerUpGhostSprite, NULL, &ball_rect);
+         SDL_Rect ghost1_rect = {
+             player.dashGhost1X,
+             player.dashGhost1y,
+             player.width,
+             player.height};
+         if (strcmp(player.dashGhost1Dir, "u") == 0)
+         {
+            SDL_RenderCopy(renderer, playerUpGhostSprite, NULL, &ghost1_rect);
+         }
+         else if (strcmp(player.dashGhost1Dir, "d") == 0)
+         {
+            SDL_RenderCopy(renderer, playerDownGhostSprite, NULL, &ghost1_rect);
+         }
+         else if (strcmp(player.dashGhost1Dir, "l") == 0)
+         {
+            SDL_RenderCopy(renderer, playerLeftGhostSprite, NULL, &ghost1_rect);
+         }
+         else
+         {
+            SDL_RenderCopy(renderer, playerRightGhostSprite, NULL, &ghost1_rect);
+         }
       }
-      else if (ball.down)
+
+      if (player.dashGhost2Active)
       {
-         SDL_RenderCopy(renderer, playerDownGhostSprite, NULL, &ball_rect);
+         SDL_Rect ghost2_rect = {
+             player.dashGhost2X,
+             player.dashGhost2y,
+             player.width,
+             player.height};
+         if (strcmp(player.dashGhost2Dir, "u") == 0)
+         {
+            SDL_RenderCopy(renderer, playerUpGhostSprite, NULL, &ghost2_rect);
+         }
+         else if (strcmp(player.dashGhost2Dir, "d") == 0)
+         {
+            SDL_RenderCopy(renderer, playerDownGhostSprite, NULL, &ghost2_rect);
+         }
+         else if (strcmp(player.dashGhost2Dir, "l") == 0)
+         {
+            SDL_RenderCopy(renderer, playerLeftGhostSprite, NULL, &ghost2_rect);
+         }
+         else
+         {
+            SDL_RenderCopy(renderer, playerRightGhostSprite, NULL, &ghost2_rect);
+         }
       }
-      else if (ball.right)
+
+      if (player.up)
       {
-         SDL_RenderCopy(renderer, playerRightGhostSprite, NULL, &ball_rect);
+         SDL_RenderCopy(renderer, playerUpGhostSprite, NULL, &player_rect);
       }
-      else if (ball.left)
+      else if (player.down)
       {
-         SDL_RenderCopy(renderer, playerLeftGhostSprite, NULL, &ball_rect);
+         SDL_RenderCopy(renderer, playerDownGhostSprite, NULL, &player_rect);
+      }
+      else if (player.right)
+      {
+         SDL_RenderCopy(renderer, playerRightGhostSprite, NULL, &player_rect);
+      }
+      else if (player.left)
+      {
+         SDL_RenderCopy(renderer, playerLeftGhostSprite, NULL, &player_rect);
       }
       else
       {
-         SDL_RenderCopy(renderer, playerDownGhostSprite, NULL, &ball_rect);
+         SDL_RenderCopy(renderer, playerDownGhostSprite, NULL, &player_rect);
       }
    }
    else
    {
-      if (ball.up)
+      if (player.up)
       {
-         if (ceil(ball.animationFrame) == 3)
+         if (ceil(player.animationFrame) == 3)
          {
-            SDL_RenderCopy(renderer, playerUpSprite2, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerUpSprite2, NULL, &player_rect);
          }
-         else if (ceil(ball.animationFrame) == 2)
+         else if (ceil(player.animationFrame) == 2)
          {
-            SDL_RenderCopy(renderer, playerUpSprite, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerUpSprite, NULL, &player_rect);
          }
          else
          {
-            SDL_RenderCopy(renderer, playerUpSprite3, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerUpSprite3, NULL, &player_rect);
          }
       }
-      else if (ball.down)
+      else if (player.down)
       {
-         if (ceil(ball.animationFrame) == 3)
+         if (ceil(player.animationFrame) == 3)
          {
-            SDL_RenderCopy(renderer, playerDownSprite2, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerDownSprite2, NULL, &player_rect);
          }
-         else if (ceil(ball.animationFrame) == 2)
+         else if (ceil(player.animationFrame) == 2)
          {
-            SDL_RenderCopy(renderer, playerDownSprite, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerDownSprite, NULL, &player_rect);
          }
          else
          {
-            SDL_RenderCopy(renderer, playerDownSprite3, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerDownSprite3, NULL, &player_rect);
          }
       }
-      else if (ball.right)
+      else if (player.right)
       {
-         if (ceil(ball.animationFrame) == 3)
+         if (ceil(player.animationFrame) == 3)
          {
-            SDL_RenderCopy(renderer, playerRightSprite2, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerRightSprite2, NULL, &player_rect);
          }
-         else if (ceil(ball.animationFrame) == 2)
+         else if (ceil(player.animationFrame) == 2)
          {
-            SDL_RenderCopy(renderer, playerRightSprite, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerRightSprite, NULL, &player_rect);
          }
          else
          {
-            SDL_RenderCopy(renderer, playerRightSprite3, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerRightSprite3, NULL, &player_rect);
          }
       }
-      else if (ball.left)
+      else if (player.left)
       {
-         if (ceil(ball.animationFrame) == 3)
+         if (ceil(player.animationFrame) == 3)
          {
-            SDL_RenderCopy(renderer, playerLeftSprite2, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerLeftSprite2, NULL, &player_rect);
          }
-         else if (ceil(ball.animationFrame) == 2)
+         else if (ceil(player.animationFrame) == 2)
          {
-            SDL_RenderCopy(renderer, playerLeftSprite, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerLeftSprite, NULL, &player_rect);
          }
          else
          {
-            SDL_RenderCopy(renderer, playerLeftSprite3, NULL, &ball_rect);
+            SDL_RenderCopy(renderer, playerLeftSprite3, NULL, &player_rect);
          }
       }
       else
       {
-         SDL_RenderCopy(renderer, playerDownSprite, NULL, &ball_rect);
+         SDL_RenderCopy(renderer, playerDownSprite, NULL, &player_rect);
       }
    }
    if (bullet.isFired == 1)
@@ -1144,8 +1298,7 @@ void render_enemyBullets()
           (int)enemyBulletList.enemyBullets[i].width,
           (int)enemyBulletList.enemyBullets[i].height};
 
-      SDL_SetRenderDrawColor(renderer, 150, 0, 0, 255);
-      SDL_RenderFillRect(renderer, &enemyBullet_rect);
+      SDL_RenderCopy(renderer, turretBullet, NULL, &enemyBullet_rect);
    }
 }
 
@@ -1158,15 +1311,34 @@ void render_enemies()
           (int)enemyList.enemies[i].y,
           (int)enemyList.enemies[i].width,
           (int)enemyList.enemies[i].height};
+      SDL_Rect turret_rect = {
+          (int)enemyList.enemies[i].x - 10,
+          (int)enemyList.enemies[i].y + 10,
+          80,
+          40};
+
+      // ceil(player.animationFrame) == 3
       if (enemyList.enemies[i].attackImmune > 0)
       {
-         SDL_SetRenderDrawColor(renderer, 150, 0, 0, 255);
+         
+         
+            SDL_RenderCopy(renderer, turretBottomHitSprite, NULL, &enemy_rect);
+            SDL_RenderCopyEx(renderer, turretTopHitSprite, NULL, &turret_rect, enemyList.enemies[i].dir, NULL, SDL_FLIP_NONE);
+         
       }
       else
       {
-         SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+         SDL_RenderCopy(renderer, turretBottomSprite, NULL, &enemy_rect);
+         SDL_RenderCopyEx(renderer, turretTopSprite, NULL, &turret_rect, enemyList.enemies[i].dir, NULL, SDL_FLIP_NONE);
       }
-      SDL_RenderFillRect(renderer, &enemy_rect);
+      // if (enemyList.enemies[i].attackImmune > 0)
+      // {
+      //    SDL_SetRenderDrawColor(renderer, 150, 0, 0, 255);
+      // }
+      // else
+      // {
+      //    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+      // }
    }
 }
 
@@ -1284,19 +1456,19 @@ void render_ui()
 {
    draw_text_with_number(fpsTextureText, ceil(fps), displayMode.w - 200, 30);
    draw_text_with_number(scoreTextureText, score, displayMode.w - 200, 80);
-   SDL_Rect dashCdBar = {(int)ball.x - 5, (int)ball.y + 70, ball.dashCd * 20, 2};
+   SDL_Rect dashCdBar = {(int)player.x - 5, (int)player.y + 70, player.dashCd * 20, 2};
    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
    SDL_RenderFillRect(renderer, &dashCdBar);
-   draw_hearths(30, 30, 3, ball.health);
+   draw_hearths(30, 30, 3, player.health);
 }
 
 void render()
 {
-   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+   SDL_SetRenderDrawColor(renderer, 120, 120, 120, 255);
    SDL_RenderClear(renderer);
-   render_player();
    render_enemyBullets();
    render_enemies();
+   render_player();
    render_ui();
 
    SDL_RenderPresent(renderer);
@@ -1390,6 +1562,17 @@ void destroy_window()
    SDL_DestroyTexture(playerUpGhostSprite);
    SDL_DestroyTexture(playerRightGhostSprite);
    SDL_DestroyTexture(playerLeftGhostSprite);
+
+   SDL_DestroyTexture(bulletSprite);
+   SDL_DestroyTexture(bullet2Sprite);
+
+   SDL_DestroyTexture(turretBottomSprite);
+   SDL_DestroyTexture(turretTopSprite);
+
+   SDL_DestroyTexture(turretBottomHitSprite);
+   SDL_DestroyTexture(turretTopHitSprite);
+
+   SDL_DestroyTexture(turretBullet);
 
    SDL_DestroyTexture(scoreTextureText);
    SDL_DestroyTexture(fpsTextureText);
