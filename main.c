@@ -67,9 +67,15 @@ SDL_Texture *playerLeftGhostSprite = NULL;
 
 SDL_Texture *turretBottomSprite = NULL;
 SDL_Texture *turretTopSprite = NULL;
+SDL_Texture *turretTop2Sprite = NULL;
+SDL_Texture *turretTop3Sprite = NULL;
+SDL_Texture *turretTop4Sprite = NULL;
 
 SDL_Texture *turretBottomHitSprite = NULL;
 SDL_Texture *turretTopHitSprite = NULL;
+SDL_Texture *turretTopHit2Sprite = NULL;
+SDL_Texture *turretTopHit3Sprite = NULL;
+SDL_Texture *turretTopHit4Sprite = NULL;
 
 SDL_Texture *turretBullet = NULL;
 
@@ -78,6 +84,7 @@ SDL_Texture *bullet2Sprite = NULL;
 
 int last_frame_time = 0;
 int score = 0;
+double hitFrame = 1;
 
 SDL_bool isContinueBtnHovered;
 SDL_bool isQuitBtnHovered;
@@ -201,6 +208,7 @@ struct Enemy
    int health;
    double attackCd;
    int maxAttackCd;
+   double shootingAnimation;
    double dir;
 };
 
@@ -755,12 +763,36 @@ void texture_setup()
    turretTopSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
    SDL_FreeSurface(imgSurface);
 
+   imgSurface = SDL_LoadBMP("./images/turretTop2.bmp");
+   turretTop2Sprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/turretTop3.bmp");
+   turretTop3Sprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/turretTop4.bmp");
+   turretTop4Sprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
    imgSurface = SDL_LoadBMP("./images/turretBottomHit.bmp");
    turretBottomHitSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
    SDL_FreeSurface(imgSurface);
 
    imgSurface = SDL_LoadBMP("./images/turretTopHit.bmp");
    turretTopHitSprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/turretTop2Hit.bmp");
+   turretTopHit2Sprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/turretTopHit3.bmp");
+   turretTopHit3Sprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
+   SDL_FreeSurface(imgSurface);
+
+   imgSurface = SDL_LoadBMP("./images/turretTop4Hit.bmp");
+   turretTopHit4Sprite = SDL_CreateTextureFromSurface(renderer, imgSurface);
    SDL_FreeSurface(imgSurface);
 
    imgSurface = SDL_LoadBMP("./images/turretBullet.bmp");
@@ -870,10 +902,15 @@ void enemy_update(SDL_Rect player_rect, double delta_time)
       cooldown_decrease(&enemyList.enemies[i].attackImmune, delta_time, 1);
       cooldown_decrease(&enemyList.enemies[i].attackCd, delta_time, 1);
       enemyList.enemies[i].dir = atan2(player.y - enemyList.enemies[i].y, player.x - enemyList.enemies[i].x) * 180.0 / M_PI;
-      
+
+      if (enemyList.enemies[i].shootingAnimation > 0)
+      {
+         cooldown_decrease(&enemyList.enemies[i].shootingAnimation, delta_time, 10);
+      }
 
       if (enemyList.enemies[i].attackCd == 0)
       {
+         enemyList.enemies[i].shootingAnimation = 4;
          enemyList.enemies[i].attackCd = enemyList.enemies[i].maxAttackCd;
          struct EnemyBullet enemyBulletInstance = {enemyList.enemies[i].x + 15, enemyList.enemies[i].y + 15, 20, 20, atan2(player.y - enemyList.enemies[i].y, player.x - enemyList.enemies[i].x)};
          addEnemyBullet(&enemyBulletList, enemyBulletInstance);
@@ -953,7 +990,7 @@ void update_spawner()
             spawnX = random_float(0, displayMode.w - 15);
             spawnY = random_float(0, displayMode.h - 15);
          } while (collision(spawnX, spawnY, 15, 15, player.x - 350, player.y - 250, 700, 500));
-         struct Enemy enemyInstance = {spawnX, spawnY, 60, 60, 2.0, 0, 2, 2, 5};
+         struct Enemy enemyInstance = {spawnX, spawnY, 60, 60, 2.0, 0, 2, 2, 5, 0};
          addEnemy(&enemyList, enemyInstance);
       }
    }
@@ -1090,6 +1127,13 @@ void update()
    }
 
    cooldown_decrease(&player.dashGhostCd, delta_time, 16);
+
+   cooldown_decrease(&hitFrame, delta_time, 8);
+   if (hitFrame == 0)
+   {
+      hitFrame = 3;
+   }
+   printf("%f\n", ceil(hitFrame));
 };
 
 void game_over_update()
@@ -1312,25 +1356,66 @@ void render_enemies()
           (int)enemyList.enemies[i].width,
           (int)enemyList.enemies[i].height};
       SDL_Rect turret_rect = {
-          (int)enemyList.enemies[i].x - 10,
+          (int)enemyList.enemies[i].x - 20,
           (int)enemyList.enemies[i].y + 10,
-          80,
+          100,
           40};
+      // enemyList.enemies[i].attackImmune > 0
 
-      // ceil(player.animationFrame) == 3
-      if (enemyList.enemies[i].attackImmune > 0)
+      if (ceil(enemyList.enemies[i].shootingAnimation) == 0)
       {
-         
-         
+         if (enemyList.enemies[i].attackImmune > 0 && !(ceil(hitFrame) == 2))
+         {
             SDL_RenderCopy(renderer, turretBottomHitSprite, NULL, &enemy_rect);
             SDL_RenderCopyEx(renderer, turretTopHitSprite, NULL, &turret_rect, enemyList.enemies[i].dir, NULL, SDL_FLIP_NONE);
-         
+         }
+         else
+         {
+            SDL_RenderCopy(renderer, turretBottomSprite, NULL, &enemy_rect);
+            SDL_RenderCopyEx(renderer, turretTopSprite, NULL, &turret_rect, enemyList.enemies[i].dir, NULL, SDL_FLIP_NONE);
+         }
       }
-      else
+      else if (ceil(enemyList.enemies[i].shootingAnimation) == 4)
       {
-         SDL_RenderCopy(renderer, turretBottomSprite, NULL, &enemy_rect);
-         SDL_RenderCopyEx(renderer, turretTopSprite, NULL, &turret_rect, enemyList.enemies[i].dir, NULL, SDL_FLIP_NONE);
+         if (enemyList.enemies[i].attackImmune > 0 && !(ceil(hitFrame) == 2))
+         {
+            SDL_RenderCopy(renderer, turretBottomHitSprite, NULL, &enemy_rect);
+            SDL_RenderCopyEx(renderer, turretTopHit2Sprite, NULL, &turret_rect, enemyList.enemies[i].dir, NULL, SDL_FLIP_NONE);
+         }
+         else
+         {
+            SDL_RenderCopy(renderer, turretBottomSprite, NULL, &enemy_rect);
+            SDL_RenderCopyEx(renderer, turretTop2Sprite, NULL, &turret_rect, enemyList.enemies[i].dir, NULL, SDL_FLIP_NONE);
+         }
       }
+      else if (ceil(enemyList.enemies[i].shootingAnimation) == 3 || ceil(enemyList.enemies[i].shootingAnimation) == 2)
+      {
+         if (enemyList.enemies[i].attackImmune > 0 && !(ceil(hitFrame) == 2))
+         {
+
+            SDL_RenderCopy(renderer, turretBottomHitSprite, NULL, &enemy_rect);
+            SDL_RenderCopyEx(renderer, turretTopHit3Sprite, NULL, &turret_rect, enemyList.enemies[i].dir, NULL, SDL_FLIP_NONE);
+         }
+         else
+         {
+            SDL_RenderCopy(renderer, turretBottomSprite, NULL, &enemy_rect);
+            SDL_RenderCopyEx(renderer, turretTop3Sprite, NULL, &turret_rect, enemyList.enemies[i].dir, NULL, SDL_FLIP_NONE);
+         }
+      }
+      else if (ceil(enemyList.enemies[i].shootingAnimation) == 1)
+      {
+         if (enemyList.enemies[i].attackImmune > 0 && !(ceil(hitFrame) == 2))
+         {
+            SDL_RenderCopy(renderer, turretBottomHitSprite, NULL, &enemy_rect);
+            SDL_RenderCopyEx(renderer, turretTopHit4Sprite, NULL, &turret_rect, enemyList.enemies[i].dir, NULL, SDL_FLIP_NONE);
+         }
+         else
+         {
+            SDL_RenderCopy(renderer, turretBottomSprite, NULL, &enemy_rect);
+            SDL_RenderCopyEx(renderer, turretTop4Sprite, NULL, &turret_rect, enemyList.enemies[i].dir, NULL, SDL_FLIP_NONE);
+         }
+      }
+
       // if (enemyList.enemies[i].attackImmune > 0)
       // {
       //    SDL_SetRenderDrawColor(renderer, 150, 0, 0, 255);
@@ -1568,6 +1653,9 @@ void destroy_window()
 
    SDL_DestroyTexture(turretBottomSprite);
    SDL_DestroyTexture(turretTopSprite);
+   SDL_DestroyTexture(turretTop2Sprite);
+   SDL_DestroyTexture(turretTop3Sprite);
+   SDL_DestroyTexture(turretTop4Sprite);
 
    SDL_DestroyTexture(turretBottomHitSprite);
    SDL_DestroyTexture(turretTopHitSprite);
