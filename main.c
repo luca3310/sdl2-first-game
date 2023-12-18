@@ -970,6 +970,12 @@ void bullet_update(SDL_Rect player_rect, double delta_time)
    }
 }
 
+int check_collision_all_enemies(x, y, width, heigh) {
+   // TODO
+   // update turret width and height
+   return FALSE;
+}
+
 void update_spawner()
 {
    if (spawner.spawnAmountIncreaseCooldown == 0)
@@ -989,7 +995,7 @@ void update_spawner()
          {
             spawnX = random_float(0, displayMode.w - 15);
             spawnY = random_float(0, displayMode.h - 15);
-         } while (collision(spawnX, spawnY, 15, 15, player.x - 350, player.y - 250, 700, 500));
+         } while (!collision(spawnX, spawnY, 15, 15, player.x, player.y, player.width, player.height) && !collision(spawnX, spawnY, 15, 15, 80, 150, displayMode.w - 160, displayMode.h - 200) && !check_collision_all_enemies(spawnX, spawnY, 15, 15));
          struct Enemy enemyInstance = {spawnX, spawnY, 60, 60, 2.0, 0, 2, 2, 5, 0};
          addEnemy(&enemyList, enemyInstance);
       }
@@ -1133,7 +1139,6 @@ void update()
    {
       hitFrame = 3;
    }
-   printf("%f\n", ceil(hitFrame));
 };
 
 void game_over_update()
@@ -1555,6 +1560,7 @@ void render()
    render_enemies();
    render_player();
    render_ui();
+
 
    SDL_RenderPresent(renderer);
 };
